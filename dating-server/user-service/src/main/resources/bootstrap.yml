@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: user-service
+  cloud:
+    nacos:
+      config:
+        server-addr: 38.76.188.242:8848
+        namespace: zzx-dating-dev
+        username: nacos
+        password: ${NACOS_PASSWORD:jianjiange}
+        file-extension: yaml
+      discovery:
+        server-addr: 38.76.188.242:8848
+        namespace: zzx-dating-dev
+        username: nacos
+        password: ${NACOS_PASSWORD:jianjiange}

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package dating.common;
+
+option java_package = "com.dating.proto.common";
+option java_multiple_files = true;
+
+message Result {
+  int32 code = 1;
+  string message = 2;
+}
+
+message PageRequest {
+  int32 page = 1;
+  int32 size = 2;
+}
+
+message PageResponse {
+  int32 page = 1;
+  int32 size = 2;
+  int64 total = 3;
+}
