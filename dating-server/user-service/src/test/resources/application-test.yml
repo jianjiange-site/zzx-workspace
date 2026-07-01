@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: user-service
+  cloud:
+    bootstrap:
+      enabled: false
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+  flyway:
+    enabled: true
+  threads:
+    virtual:
+      enabled: false
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+  global-config:
+    db-config:
+      id-type: ASSIGN_ID
+      update-strategy: NOT_NULL
+
+dating:
+  object-storage:
+    endpoint: http://minio-test:9000
+    region: us-east-1
+    access-key: test
+    secret-key: test
+    path-style-access: true
+    bucket: test-bucket
