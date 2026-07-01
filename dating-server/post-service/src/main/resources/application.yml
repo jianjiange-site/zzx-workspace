@@ -1,0 +1,18 @@
+server:
+  port: 8082
+
+grpc:
+  server:
+    port: 9092
+
+spring:
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jmx:
+    enabled: false
+
+logging:
+  level:
+    com.dating.server.post: DEBUG

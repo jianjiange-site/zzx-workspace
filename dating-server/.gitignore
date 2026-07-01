@@ -1,0 +1,4 @@
+# startup scripts with env vars
+run-*.sh
+run-*.bat
+.env

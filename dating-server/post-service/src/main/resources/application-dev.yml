@@ -1,0 +1,45 @@
+spring:
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://38.76.188.242:5433/dating_dev_zzx?stringtype=unspecified}
+    username: ${DB_USERNAME:jianjian_test}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 8
+      minimum-idle: 2
+      connection-init-sql: SET TIME ZONE 'UTC'
+  data:
+    redis:
+      host: ${REDIS_HOST:38.76.188.242}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      database: 1
+      timeout: 3s
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+  global-config:
+    db-config:
+      id-type: ASSIGN_ID
+      update-strategy: NOT_NULL
+
+dating:
+  object-storage:
+    provider: s3
+    endpoint: ${MINIO_ENDPOINT:https://minio-api.jianjiange.site}
+    region: us-east-1
+    access-key: ${MINIO_ACCESS_KEY:admin}
+    path-style-access: true
+    bucket: zzx-dating-dev
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESERVER:38.76.188.242:9876}
+  producer:
+    group: zzx-dating-dev-post-producer
+    access-key: ${ROCKETMQ_ACCESS_KEY:rocketmq-student}
+    send-message-timeout: 3000
