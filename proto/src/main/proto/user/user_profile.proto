@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package dating.user;
+
+option java_package = "com.dating.proto.user";
+option java_multiple_files = true;
+
+import "common/result.proto";
+
+service UserProfileService {
+  rpc GetProfile(GetProfileRequest) returns (UserProfile);
+  rpc BatchGetProfiles(BatchGetProfilesRequest) returns (BatchGetProfilesResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+
+  // 供 post-service Feed 池分桶用
+  rpc GetGender(GetGenderRequest) returns (GetGenderResponse);
+  rpc BatchGetGenders(BatchGetGendersRequest) returns (BatchGetGendersResponse);
+
+  // 供 post-service 写扩散用
+  rpc GetFriendUserIds(GetFriendUserIdsRequest) returns (GetFriendUserIdsResponse);
+}
+
+service UserBanService {
+  rpc CheckBan(CheckBanRequest) returns (CheckBanResponse);
+}
+
+service UserInterestService {
+  rpc GetInterests(GetInterestsRequest) returns (GetInterestsResponse);
+  rpc ReplaceInterests(ReplaceInterestsRequest) returns (ReplaceInterestsResponse);
+}
+
+message GetProfileRequest {
+  int64 user_id = 1;
+}
+
+message UserProfile {
+  int64 user_id = 1;
+  string nickname = 2;
+  int32 gender = 3;            // 0=unknown, 1=male, 2=female
+  string birthday = 4;
+  int32 age = 5;
+  string bio = 6;
+  string profession = 7;
+  string education = 8;
+  int32 height = 9;
+  string preferred_location = 10;
+  string avatar_original = 11;
+  string avatar_min = 12;
+  string avatar_mid = 13;
+  bool pending = 14;
+  int32 regulation_status = 15;
+  int64 created_at = 16;
+  int64 updated_at = 17;
+  dating.common.Result result = 18;
+}
+
+message BatchGetProfilesRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BatchGetProfilesResponse {
+  map<int64, UserProfile> profiles = 1;
+  dating.common.Result result = 2;
+}
+
+message UpdateProfileRequest {
+  int64 user_id = 1;
+  string nickname = 2;
+  int32 gender = 3;
+  string birthday = 4;
+  string bio = 5;
+  string profession = 6;
+  string education = 7;
+  int32 height = 8;
+  string preferred_location = 9;
+}
+
+message UpdateProfileResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}
+
+message GetGenderRequest {
+  int64 user_id = 1;
+}
+
+message GetGenderResponse {
+  int32 gender = 1;            // 0=unknown, 1=male, 2=female
+  dating.common.Result result = 2;
+}
+
+message BatchGetGendersRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BatchGetGendersResponse {
+  map<int64, int32> genders = 1;
+  dating.common.Result result = 2;
+}
+
+message GetFriendUserIdsRequest {
+  int64 user_id = 1;
+}
+
+message GetFriendUserIdsResponse {
+  repeated int64 user_ids = 1;
+  dating.common.Result result = 2;
+}
+
+message CheckBanRequest {
+  int64 user_id = 1;
+}
+
+message CheckBanResponse {
+  bool banned = 1;
+  string reason = 2;
+  int64 banned_at_ms = 3;
+  dating.common.Result result = 4;
+}
+
+message GetInterestsRequest {
+  int64 user_id = 1;
+}
+
+message InterestItem {
+  int64 id = 1;
+  string type = 2;             // IMAGE / TEXT
+  string pic_key = 3;
+  string content = 4;
+  int32 sort_order = 5;
+}
+
+message GetInterestsResponse {
+  repeated InterestItem items = 1;
+  dating.common.Result result = 2;
+}
+
+message ReplaceInterestsRequest {
+  int64 user_id = 1;
+  repeated InterestItem items = 2;
+}
+
+message ReplaceInterestsResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}

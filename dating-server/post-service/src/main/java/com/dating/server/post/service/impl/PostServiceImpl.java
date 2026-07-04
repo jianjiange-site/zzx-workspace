@@ -8,6 +8,8 @@ import com.dating.server.post.exception.BizException;
 import com.dating.server.post.exception.ErrorCodes;
 import com.dating.server.post.manager.PostManager;
 import com.dating.server.post.manager.PostStatsManager;
+import com.dating.server.post.mq.PostFanoutProducer;
+import com.dating.server.post.service.FeedService;
 import com.dating.server.post.service.PostService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,8 @@ public class PostServiceImpl implements PostService {
 
     private final PostManager postManager;
     private final PostStatsManager postStatsManager;
+    private final PostFanoutProducer postFanoutProducer;
+    private final FeedService feedService;
 
     @Override
     @Transactional
@@ -56,6 +60,12 @@ public class PostServiceImpl implements PostService {
             }).collect(Collectors.toList());
             postManager.insertImages(images);
         }
+
+        // 写扩散：异步通知粉丝有新帖子（不阻塞事务，失败只打日志）
+        postFanoutProducer.sendPostCreated(post.getId(), userId, post.getCreatedAt().toEpochMilli());
+
+        // 冷启动入池：新帖子马上能出现在推荐流里
+        feedService.addToColdPool(post.getId(), post.getCreatedAt().toEpochMilli());
 
         log.info("帖子创建成功: postId={}, userId={}", post.getId(), userId);
         return toPostVO(post, null, false);

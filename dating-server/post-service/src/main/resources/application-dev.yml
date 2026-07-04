@@ -42,4 +42,8 @@ rocketmq:
   producer:
     group: zzx-dating-dev-post-producer
     access-key: ${ROCKETMQ_ACCESS_KEY:rocketmq-student}
+    secret-key: ${ROCKETMQ_SECRET_KEY:}
     send-message-timeout: 3000
+  consumer:
+    access-key: ${ROCKETMQ_ACCESS_KEY:rocketmq-student}
+    secret-key: ${ROCKETMQ_SECRET_KEY:}

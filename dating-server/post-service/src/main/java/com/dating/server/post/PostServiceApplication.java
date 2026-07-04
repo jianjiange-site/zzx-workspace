@@ -6,7 +6,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @MapperScan("com.dating.server.post.mapper")
-public class PostServiceApplication {
+public class
+
+PostServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(PostServiceApplication.class, args);
     }

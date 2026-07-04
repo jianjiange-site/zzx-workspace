@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package dating.user;
+
+option java_package = "com.dating.proto.user";
+option java_multiple_files = true;
+
+// 内联的 Result 定义，避免 import 依赖
+message Result {
+  int32 code = 1;
+  string message = 2;
+}
+
+service UserIdentityService {
+  rpc RegisterOrLoginByPhone(PhoneLoginRequest) returns (PhoneLoginResponse);
+  rpc RegisterOrLoginByThirdParty(ThirdPartyLoginRequest) returns (ThirdPartyLoginResponse);
+  rpc RegisterOrLoginByDevice(DeviceLoginRequest) returns (DeviceLoginResponse);
+}
+
+message PhoneLoginRequest {
+  string phone = 1;
+  string code = 2;
+}
+
+message PhoneLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;
+  Result result = 3;
+}
+
+message ThirdPartyLoginRequest {
+  string platform = 1;
+  string third_party_user_id = 2;
+  string device_id = 3;
+}
+
+message ThirdPartyLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;
+  Result result = 3;
+}
+
+message DeviceLoginRequest {
+  string device_id = 1;
+  string platform = 2;
+}
+
+message DeviceLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;
+  Result result = 3;
+}

@@ -28,14 +28,22 @@ public class CacheKeys {
         return PREFIX + "like:" + postId + ":" + userId;
     }
 
+    /** 写 coalescing 计数器前缀 */
+    public static final String LIKE_COUNT_PREFIX = PREFIX + "count:like:";
+    public static final String COMMENT_COUNT_PREFIX = PREFIX + "count:comment:";
+
+    /** 写 coalescing 脏集合 key */
+    public static final String DIRTY_LIKE_KEY = "post:dirty:like";
+    public static final String DIRTY_COMMENT_KEY = "post:dirty:comment";
+
     /** 帖子点赞数缓存（写 coalescing），TTL 1h */
     public static String likeCount(Long postId) {
-        return PREFIX + "count:like:" + postId;
+        return LIKE_COUNT_PREFIX + postId;
     }
 
     /** 帖子评论数缓存（写 coalescing），TTL 1h */
     public static String commentCount(Long postId) {
-        return PREFIX + "count:comment:" + postId;
+        return COMMENT_COUNT_PREFIX + postId;
     }
 
     /** 操作锁：发帖分布式锁，TTL 10s */

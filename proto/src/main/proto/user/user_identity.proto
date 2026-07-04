@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package dating.user;
+
+option java_package = "com.dating.proto.user";
+option java_multiple_files = true;
+
+import "common/result.proto";
+
+service UserIdentityService {
+  rpc RegisterOrLoginByPhone(PhoneLoginRequest) returns (PhoneLoginResponse);
+  rpc RegisterOrLoginByThirdParty(ThirdPartyLoginRequest) returns (ThirdPartyLoginResponse);
+  rpc RegisterOrLoginByDevice(DeviceLoginRequest) returns (DeviceLoginResponse);
+}
+
+message PhoneLoginRequest {
+  string phone = 1;           // E.164 format, e.g. "+8613800138000"
+  string code = 2;            // verification code, "666666" for dev
+}
+
+message PhoneLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;           // true=first login, profile incomplete
+  dating.common.Result result = 3;
+}
+
+message ThirdPartyLoginRequest {
+  string platform = 1;        // google / apple / wechat
+  string third_party_user_id = 2;
+  string device_id = 3;
+}
+
+message ThirdPartyLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;
+  dating.common.Result result = 3;
+}
+
+message DeviceLoginRequest {
+  string device_id = 1;
+  string platform = 2;        // ios / android
+}
+
+message DeviceLoginResponse {
+  int64 user_id = 1;
+  bool pending = 2;
+  dating.common.Result result = 3;
+}
