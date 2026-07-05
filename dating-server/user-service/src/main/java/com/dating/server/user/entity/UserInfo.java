@@ -73,6 +73,21 @@ public class UserInfo {
     /** 最后一次打开 App 的时间（TIMESTAMPTZ 时区感知） */
     private Instant lastOpenAt;
 
+    /** 用户类型：1=BH(真人) 2=DH(数字人) */
+    private Integer userType;
+
+    /** 颜值分 0-100 */
+    private Integer beautyScore;
+
+    /** 人种 */
+    private String race;
+
+    /** 纬度 */
+    private Double latitude;
+
+    /** 经度 */
+    private Double longitude;
+
     /** 联系方式-手机号（不作登录凭证，纯联系用） */
     private String phoneNumber;
 

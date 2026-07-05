@@ -39,7 +39,7 @@
         <dependency>
             <groupId>com.dating.zzx.proto</groupId>
             <artifactId>dating-proto-zzx</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
 
         <!-- MapStruct -->

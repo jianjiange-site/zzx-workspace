@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package dating.match;
+
+option java_package = "com.dating.proto.match";
+option java_multiple_files = true;
+
+import "common/result.proto";
+
+service MatchService {
+  // 划卡：左滑/右滑/超级喜欢，右滑双向检测匹配
+  rpc Swipe(SwipeRequest) returns (SwipeResponse);
+
+  // 自己的划卡历史
+  rpc ListSwipes(ListSwipesRequest) returns (ListSwipesResponse);
+
+  // 喜欢过我的人（右滑/超级喜欢）
+  rpc GetWhoLikedMe(GetWhoLikedMeRequest) returns (GetWhoLikedMeResponse);
+
+  // 回应 like：like back → 匹配，pass → 忽略
+  rpc ReplyLike(ReplyLikeRequest) returns (ReplyLikeResponse);
+
+  // 匹配列表
+  rpc ListMatches(ListMatchesRequest) returns (ListMatchesResponse);
+
+  // 访问他人主页记录
+  rpc RecordVisit(RecordVisitRequest) returns (RecordVisitResponse);
+
+  // 谁看过我
+  rpc ListVisitors(ListVisitorsRequest) returns (ListVisitorsResponse);
+}
+
+// ── 划卡 ──
+
+message SwipeRequest {
+  int64 user_id = 1;
+  int64 target_user_id = 2;
+  int32 direction = 3;        // 1=LEFT 2=RIGHT 3=SUPER_HI
+  int32 target_user_type = 4; // 1=BH 2=DH
+}
+
+message SwipeResponse {
+  bool matched = 1;           // 是否产生新匹配
+  int64 match_id = 2;         // 匹配 ID，matched=true 时有值
+  dating.common.Result result = 3;
+}
+
+// ── 划卡历史 ──
+
+message ListSwipesRequest {
+  int64 user_id = 1;
+  int32 page_size = 2;        // 默认 20
+  int64 cursor = 3;           // last id, 0 表示首页
+}
+
+message SwipeRecord {
+  int64 id = 1;
+  int64 target_user_id = 2;
+  int32 direction = 3;
+  int32 target_user_type = 4;
+  int64 swiped_at = 5;        // epoch ms
+}
+
+message ListSwipesResponse {
+  repeated SwipeRecord items = 1;
+  int64 next_cursor = 2;
+  bool has_more = 3;
+  dating.common.Result result = 4;
+}
+
+// ── 谁喜欢过我 ──
+
+message GetWhoLikedMeRequest {
+  int64 user_id = 1;
+  int32 page_size = 2;        // 默认 20
+  int64 cursor = 3;           // last id, 0 表示首页
+}
+
+message WhoLikedMeItem {
+  int64 id = 1;               // like_record id
+  int64 from_user_id = 2;
+  int32 from_user_type = 3;   // 1=BH 2=DH
+  int64 liked_at = 4;         // epoch ms
+}
+
+message GetWhoLikedMeResponse {
+  repeated WhoLikedMeItem items = 1;
+  int64 next_cursor = 2;
+  bool has_more = 3;
+  int32 total_count = 4;      // 总未读数
+  dating.common.Result result = 5;
+}
+
+// ── 回应 like ──
+
+message ReplyLikeRequest {
+  int64 user_id = 1;          // 当前用户
+  int64 like_record_id = 2;   // like_record 的 id
+  bool like_back = 3;         // true=like back(匹配), false=pass
+}
+
+message ReplyLikeResponse {
+  bool matched = 1;           // like_back=true 且对方未删除时返回 true
+  int64 match_id = 2;         // 匹配 ID
+  dating.common.Result result = 3;
+}
+
+// ── 匹配列表 ──
+
+message ListMatchesRequest {
+  int64 user_id = 1;
+  int32 page_size = 2;        // 默认 20
+  int64 cursor = 3;           // last match_id, 0 表示首页
+}
+
+message MatchItem {
+  int64 match_id = 1;
+  int64 user_id = 2;          // 对方用户 id
+  int64 matched_at = 3;       // epoch ms
+  string source = 4;          // SWIPE_MATCH / SWIPE_SUPER_HI
+}
+
+message ListMatchesResponse {
+  repeated MatchItem items = 1;
+  int64 next_cursor = 2;
+  bool has_more = 3;
+  dating.common.Result result = 4;
+}
+
+// ── 访问记录 ──
+
+message RecordVisitRequest {
+  int64 from_user_id = 1;
+  int64 to_user_id = 2;
+  int32 from_user_type = 3;   // 1=BH 2=DH
+  int32 source = 4;           // 1=PROFILE_VIEW 2=DH_PLAN_ONLINE 3=DH_PLAN_OFFLINE
+}
+
+message RecordVisitResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 谁看过我 ──
+
+message ListVisitorsRequest {
+  int64 user_id = 1;
+  int32 page_size = 2;        // 默认 20
+  int64 cursor = 3;           // last id, 0 表示首页
+}
+
+message VisitorItem {
+  int64 id = 1;
+  int64 from_user_id = 2;
+  int32 from_user_type = 3;
+  int32 visit_count = 4;
+  int64 visited_at = 5;       // epoch ms
+}
+
+message ListVisitorsResponse {
+  repeated VisitorItem items = 1;
+  int64 next_cursor = 2;
+  bool has_more = 3;
+  dating.common.Result result = 4;
+}

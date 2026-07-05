@@ -18,6 +18,11 @@ service UserProfileService {
 
   // 供 post-service 写扩散用
   rpc GetFriendUserIds(GetFriendUserIdsRequest) returns (GetFriendUserIdsResponse);
+
+  // 供 match-service 召回 DH 候选
+  rpc ListDhCandidates(ListDhCandidatesRequest) returns (ListDhCandidatesResponse);
+  // 供 match-service 召回附近 BH
+  rpc NearbyUsers(NearbyUsersRequest) returns (NearbyUsersResponse);
 }
 
 service UserBanService {
@@ -104,6 +109,63 @@ message GetFriendUserIdsRequest {
 
 message GetFriendUserIdsResponse {
   repeated int64 user_ids = 1;
+  dating.common.Result result = 2;
+}
+
+// ── match-service: DH 候选召回 ──
+message ListDhCandidatesRequest {
+  int32 target_gender = 1;           // 1=MALE 2=FEMALE
+  int32 age_min = 2;
+  int32 age_max = 3;
+  int32 beauty_min = 4;
+  int32 beauty_max = 5;
+  repeated string races = 6;         // 优先人种，空=不限
+  repeated int64 exclude_user_ids = 7;
+  int32 limit = 8;                   // 默认 240
+}
+
+message DhCandidate {
+  int64 user_id = 1;
+  int32 gender = 2;
+  int32 age = 3;
+  int32 beauty_score = 4;
+  string race = 5;
+  int64 created_at = 6;              // epoch ms，用于 is_new_bh 判定
+}
+
+message ListDhCandidatesResponse {
+  repeated DhCandidate candidates = 1;
+  dating.common.Result result = 2;
+}
+
+// ── match-service: 附近 BH 召回 ──
+message NearbyUsersRequest {
+  int64 user_id = 1;                 // 当前用户 id
+  int32 target_gender = 2;           // 异性
+  int32 age_min = 3;
+  int32 age_max = 4;
+  int32 beauty_min = 5;
+  int32 beauty_max = 6;
+  repeated string races = 7;         // 优先人种
+  double radius_km = 8;              // 搜索半径
+  int32 last_active_within_days = 9; // 最近 X 天活跃
+  int32 limit = 10;                   // 默认 240
+  repeated int64 exclude_user_ids = 11;
+}
+
+message NearbyUser {
+  int64 user_id = 1;
+  int32 gender = 2;
+  int32 age = 3;
+  int32 beauty_score = 4;
+  string race = 5;
+  double distance_km = 6;
+  int64 last_active_at = 7;          // epoch ms
+  int64 created_at = 8;              // epoch ms
+}
+
+message NearbyUsersResponse {
+  repeated NearbyUser users = 1;
   dating.common.Result result = 2;
 }
 

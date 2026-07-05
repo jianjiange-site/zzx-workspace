@@ -4,6 +4,7 @@ import com.dating.server.user.constant.CacheKeys;
 import com.dating.server.user.entity.UserInfo;
 import com.dating.server.user.mapper.UserInfoMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -99,6 +100,88 @@ public class UserInfoManager {
     /** 批量查询，后续优化加入 Redis 批量读 */
     public java.util.List<UserInfo> getByIds(java.util.Collection<Long> ids) {
         return userInfoMapper.selectBatchIds(ids);
+    }
+
+    // ========================================================================
+    // 发现服务（match-service 召回用）
+    // ========================================================================
+
+    /**
+     * 查询 DH 候选列表。
+     * 按 user_type=2(DH) + gender + age + beauty_score + race 过滤，
+     * 走索引 idx_user_info_user_type_gender_age_beauty。
+     */
+    public java.util.List<UserInfo> listDhCandidates(int gender, int ageMin, int ageMax,
+                                                      int beautyMin, int beautyMax,
+                                                      java.util.List<String> races,
+                                                      java.util.List<Long> excludeUserIds,
+                                                      int limit) {
+        LambdaQueryWrapper<UserInfo> q = new LambdaQueryWrapper<UserInfo>()
+                .eq(UserInfo::getUserType, 2)           // DH only
+                .eq(UserInfo::getGender, gender)
+                .ge(UserInfo::getAge, ageMin)
+                .le(UserInfo::getAge, ageMax)
+                .ge(UserInfo::getBeautyScore, beautyMin)
+                .le(UserInfo::getBeautyScore, beautyMax)
+                .eq(UserInfo::getPending, false)         // 已补齐资料
+                .eq(UserInfo::getRegulationStatus, 0);   // 未封禁
+
+        if (races != null && !races.isEmpty()) {
+            q.in(UserInfo::getRace, races);
+        }
+        if (excludeUserIds != null && !excludeUserIds.isEmpty()) {
+            q.notIn(UserInfo::getId, excludeUserIds);
+        }
+        q.orderByDesc(UserInfo::getBeautyScore)
+         .last("LIMIT " + limit);
+
+        return userInfoMapper.selectList(q);
+    }
+
+    /**
+     * 查询附近 BH 用户。
+     * 使用简单的经纬度矩形框近似，精确距离在 service 层计算。
+     */
+    public java.util.List<UserInfo> nearbyUsers(Long selfUserId, int gender, int ageMin, int ageMax,
+                                                  int beautyMin, int beautyMax,
+                                                  java.util.List<String> races,
+                                                  double lat, double lng, double radiusKm,
+                                                  int lastActiveDays, int limit,
+                                                  java.util.List<Long> excludeUserIds) {
+        // 粗略经纬度范围：1° ≈ 111km
+        double deg = radiusKm / 111.0;
+        double latMin = lat - deg;
+        double latMax = lat + deg;
+        double lngMin = lng - deg;
+        double lngMax = lng + deg;
+
+        LambdaQueryWrapper<UserInfo> q = new LambdaQueryWrapper<UserInfo>()
+                .eq(UserInfo::getUserType, 1)           // BH only
+                .eq(UserInfo::getGender, gender)
+                .ge(UserInfo::getAge, ageMin)
+                .le(UserInfo::getAge, ageMax)
+                .ge(UserInfo::getBeautyScore, beautyMin)
+                .le(UserInfo::getBeautyScore, beautyMax)
+                .ge(UserInfo::getLatitude, latMin)
+                .le(UserInfo::getLatitude, latMax)
+                .ge(UserInfo::getLongitude, lngMin)
+                .le(UserInfo::getLongitude, lngMax)
+                .eq(UserInfo::getPending, false)
+                .eq(UserInfo::getRegulationStatus, 0);
+
+        if (races != null && !races.isEmpty()) {
+            q.in(UserInfo::getRace, races);
+        }
+        if (excludeUserIds != null && !excludeUserIds.isEmpty()) {
+            q.notIn(UserInfo::getId, excludeUserIds);
+        }
+        if (lastActiveDays > 0) {
+            q.ge(UserInfo::getLastOpenAt, java.time.Instant.now().minusSeconds(lastActiveDays * 86400L));
+        }
+        q.orderByDesc(UserInfo::getBeautyScore)
+         .last("LIMIT " + limit);
+
+        return userInfoMapper.selectList(q);
     }
 
     // ========================================================================

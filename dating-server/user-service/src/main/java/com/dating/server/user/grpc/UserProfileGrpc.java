@@ -25,6 +25,7 @@ public class UserProfileGrpc extends UserProfileServiceGrpc.UserProfileServiceIm
 
     private final UserProfileService userProfileService;
     private final UserInfoManager userInfoManager;
+    private final com.dating.server.user.service.UserDiscoveryService userDiscoveryService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -189,6 +190,107 @@ public class UserProfileGrpc extends UserProfileServiceGrpc.UserProfileServiceIm
                 .setResult(success())
                 .build());
         responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listDhCandidates(ListDhCandidatesRequest request,
+                                 StreamObserver<ListDhCandidatesResponse> responseObserver) {
+        try {
+            int limit = request.getLimit() > 0 ? Math.min(request.getLimit(), 240) : 240;
+            List<UserInfo> users = userDiscoveryService.listDhCandidates(
+                    request.getTargetGender(),
+                    request.getAgeMin(), request.getAgeMax(),
+                    request.getBeautyMin(), request.getBeautyMax(),
+                    request.getRacesList(), request.getExcludeUserIdsList(), limit);
+
+            ListDhCandidatesResponse.Builder builder = ListDhCandidatesResponse.newBuilder()
+                    .setResult(success());
+            for (UserInfo u : users) {
+                builder.addCandidates(DhCandidate.newBuilder()
+                        .setUserId(u.getId())
+                        .setGender(u.getGender() != null ? u.getGender() : 0)
+                        .setAge(u.getAge() != null ? u.getAge() : 0)
+                        .setBeautyScore(u.getBeautyScore() != null ? u.getBeautyScore() : 0)
+                        .setRace(u.getRace() != null ? u.getRace() : "")
+                        .setCreatedAt(u.getCreatedAt() != null ? u.getCreatedAt().toEpochMilli() : 0)
+                        .build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("ListDhCandidates error", e);
+            responseObserver.onNext(ListDhCandidatesResponse.newBuilder()
+                    .setResult(error(500, e.getMessage()))
+                    .build());
+            responseObserver.onCompleted();
+        }
+    }
+
+    @Override
+    public void nearbyUsers(NearbyUsersRequest request,
+                            StreamObserver<NearbyUsersResponse> responseObserver) {
+        try {
+            int limit = request.getLimit() > 0 ? Math.min(request.getLimit(), 240) : 240;
+
+            // 获取当前用户位置
+            UserInfo self = userInfoManager.getById(request.getUserId());
+
+            if (self == null || self.getLatitude() == null || self.getLongitude() == null) {
+                // 无位置信息返回空列表
+                responseObserver.onNext(NearbyUsersResponse.newBuilder()
+                        .setResult(success())
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            List<UserInfo> users = userDiscoveryService.nearbyUsers(
+                    request.getUserId(), request.getTargetGender(),
+                    request.getAgeMin(), request.getAgeMax(),
+                    request.getBeautyMin(), request.getBeautyMax(),
+                    request.getRacesList(),
+                    self.getLatitude(), self.getLongitude(),
+                    request.getRadiusKm() > 0 ? request.getRadiusKm() : 100,
+                    request.getLastActiveWithinDays() > 0 ? request.getLastActiveWithinDays() : 7,
+                    limit, request.getExcludeUserIdsList());
+
+            NearbyUsersResponse.Builder builder = NearbyUsersResponse.newBuilder()
+                    .setResult(success());
+            for (UserInfo u : users) {
+                double dist = calcDistance(self.getLatitude(), self.getLongitude(),
+                        u.getLatitude(), u.getLongitude());
+                builder.addUsers(NearbyUser.newBuilder()
+                        .setUserId(u.getId())
+                        .setGender(u.getGender() != null ? u.getGender() : 0)
+                        .setAge(u.getAge() != null ? u.getAge() : 0)
+                        .setBeautyScore(u.getBeautyScore() != null ? u.getBeautyScore() : 0)
+                        .setRace(u.getRace() != null ? u.getRace() : "")
+                        .setDistanceKm(dist)
+                        .setLastActiveAt(u.getLastOpenAt() != null ? u.getLastOpenAt().toEpochMilli() : 0)
+                        .setCreatedAt(u.getCreatedAt() != null ? u.getCreatedAt().toEpochMilli() : 0)
+                        .build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("NearbyUsers error", e);
+            responseObserver.onNext(NearbyUsersResponse.newBuilder()
+                    .setResult(error(500, e.getMessage()))
+                    .build());
+            responseObserver.onCompleted();
+        }
+    }
+
+    /** Haversine 公式计算两点距离（km） */
+    private double calcDistance(double lat1, double lng1, double lat2, double lng2) {
+        if (lat2 == 0 && lng2 == 0) return 999999;
+        double R = 6371;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     private UserProfile toUserProfile(UserInfo user) {

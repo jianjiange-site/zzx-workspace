@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://38.76.188.242:5433/dating_dev_zzx?stringtype=unspecified
+    username: jianjian_test
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: 38.76.188.242
+      port: 6380
+      password: ${REDIS_PASSWORD}
+      database: 2
