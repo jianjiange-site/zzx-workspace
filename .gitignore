@@ -40,3 +40,6 @@ venv/
 
 # Proto generated
 proto/gen/
+
+# AI memory
+.claude/

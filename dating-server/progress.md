@@ -73,6 +73,107 @@
 
 ---
 
+## mobile-gateway 开发进度
+
+### 状态：REST → gRPC BFF 搭建完成并验证 ✅（2026-07-06）
+
+- Tomcat 8081 ✓
+- Nacos 注册 ✓
+- gRPC 路由 ✓（user-service 全链路通）
+- 登录链路通过 gateway 验证 ✅
+- 资料查询链路通过 gateway 验证 ✅
+
+### 架构定位
+
+```
+App/H5 (HTTP/JSON)
+     ↕
+mobile-gateway (端口 8081) — REST → gRPC BFF
+     ↕ gRPC（net.devh）
+user-service  |  post-service  |  match-service  |  im-service
+```
+
+gateway 不做任何业务逻辑，只做协议转换（HTTP/JSON ↔ gRPC/Protobuf）、鉴权（JWT）、聚合裁剪字段。
+
+### 代码结构（13 Java 文件）
+
+| 层 | 文件 | 说明 |
+|---|---|---|
+| 入口 | `MobileGatewayApplication.java` | Spring Boot 启动类 |
+| Auth | `JwtUtil.java` | HMAC-SHA256 签发/校验（jjwt 0.12.x） |
+| Auth | `JwtAuthFilter.java` | OncePerRequestFilter，排除 `/api/v1/auth/` |
+| Client | `UserServiceClient.java` | 4 个 @GrpcClient stub（identity/profile/ban/interest） |
+| Client | `PostServiceClient.java` | 1 个 stub，9 个 RPC |
+| Client | `MatchServiceClient.java` | 1 个 stub，7 个 RPC |
+| Common | `R.java` | 统一 JSON 响应体 `{code, message, data}` |
+| Common | `ProtoJson.java` | Proto → JSON → Map 转换（JsonFormat.printer） |
+| Controller | `AuthController.java` | 3 个登录端点（phone/third-party/device）→ 签发 JWT |
+| Controller | `UserController.java` | 6 个端点（资料/兴趣/封禁） |
+| Controller | `PostController.java` | 9 个端点（帖子 CRUD/点赞/评论/推荐） |
+| Controller | `MatchController.java` | 7 个端点（滑动/喜欢/匹配/访客） |
+| Exception | `GlobalExceptionHandler.java` | 400/500 统一处理 |
+
+### API 清单
+
+**Auth（不需要 JWT）**
+- `POST /api/v1/auth/login/phone` — 手机验证码登录
+- `POST /api/v1/auth/login/third-party` — 三方登录
+- `POST /api/v1/auth/login/device` — 设备快速登录
+
+**User（需要 JWT）**
+- `GET /api/v1/users/{userId}/profile` — 查资料
+- `PUT /api/v1/users/{userId}/profile` — 更新资料
+- `GET /api/v1/users/{userId}/interests` — 查兴趣标签
+- `PUT /api/v1/users/{userId}/interests` — 替换兴趣标签
+- `GET /api/v1/users/{userId}/ban/status` — 封禁检查
+
+**Post（需要 JWT）**
+- `POST /api/v1/posts` — 发帖
+- `GET /api/v1/posts/{postId}` — 查帖子
+- `DELETE /api/v1/posts/{postId}` — 删帖
+- `GET /api/v1/posts/user/{userId}` — 用户帖子列表
+- `POST /api/v1/posts/{postId}/like` — 点赞
+- `DELETE /api/v1/posts/{postId}/like` — 取消点赞
+- `GET /api/v1/posts/{postId}/like/status` — 点赞状态
+- `POST /api/v1/posts/{postId}/comments` — 评论
+- `GET /api/v1/posts/{postId}/recommend` — feed 推荐
+
+**Match（需要 JWT）**
+- `POST /api/v1/matches/swipe` — 滑动
+- `GET /api/v1/matches/swipes` — 滑动记录
+- `GET /api/v1/matches/liked-me` — 喜欢我的
+- `POST /api/v1/matches/reply-like` — 回复喜欢
+- `GET /api/v1/matches/matches` — 匹配列表
+- `POST /api/v1/matches/visit` — 访问
+- `GET /api/v1/matches/visitors` — 访客列表
+
+### 验证通过（curl 实测）
+- 设备登录 → 返回 JWT token ✅
+- 带 token 查资料 → 返回用户资料 ✅
+- 无 token/过期 token → 401 ✅
+
+### 基础设施
+- 端口 8081（避免跟 user-service 8080 冲突）
+- bootstrap.yml → Nacos 服务注册
+- JWT secret 暂存 application.yml（后续移到环境变量/Nacos）
+- Proto 契约 `dating-proto-zzx:1.0`（Nexus 包）
+
+### 遇到的坑
+- `discovery://service-name` 双斜杠导致 DiscoveryClientNameResolver 解析失败 → 改为 `discovery:/service-name`（单斜杠）
+- Spring Boot 3.x validation 从 web starter 解耦 → 需手动加 `spring-boot-starter-validation`
+- 父 pom `<dependencies>` 包含 mybatis-plus 强制要求 DataSource → `spring.autoconfigure.exclude` 排除
+- Nacos namespace 显示名 `zzx-dating-dev` vs UUID `8656224a-...` 不一致，配置 data ID 需确认实际 namespace
+
+### 待完成
+- [ ] post-service / match-service 的 gRPC handler（当前 gateway 已配好客户端 stub，但后端服务还没实现 gRPC 接口）
+- [ ] JWT secret 从 application.yml 移到 Nacos 配置或环境变量
+- [ ] 集成测试（mock gRPC stub 测 controller）
+- [ ] Apifox 接口文档/测试脚本
+- [ ] rate limiting / 限流
+- [ ] 请求日志 MDC traceId
+
+---
+
 ## post-service 开发进度
 
 ### 状态：CRUD API 全部完成并验证 ✅（2026-07-01）

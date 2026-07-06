@@ -1,0 +1,27 @@
+server:
+  port: 8081
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    default-property-inclusion: non_null
+
+grpc:
+  client:
+    user-service:
+      address: discovery:/user-service
+      negotiation-type: plaintext
+    post-service:
+      address: discovery:/post-service
+      negotiation-type: plaintext
+    match-service:
+      address: discovery:/match-service
+      negotiation-type: plaintext
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration-ms: ${JWT_EXPIRATION_MS:7200000}
