@@ -21,6 +21,6 @@ public class LikeRecord {
     private Instant createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
-    @TableLogic
+    @TableLogic(value = "false", delval = "true")
     private Boolean deleted;
 }

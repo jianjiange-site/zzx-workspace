@@ -164,9 +164,17 @@ gateway 不做任何业务逻辑，只做协议转换（HTTP/JSON ↔ gRPC/Proto
 - 父 pom `<dependencies>` 包含 mybatis-plus 强制要求 DataSource → `spring.autoconfigure.exclude` 排除
 - Nacos namespace 显示名 `zzx-dating-dev` vs UUID `8656224a-...` 不一致，配置 data ID 需确认实际 namespace
 
+### 验证状态（2026-07-07 三服务全链路通过）
+| 链路 | 状态 | 说明 |
+|---|---|---|
+| user-auth → user-service (gRPC) | ✅ | 设备登录返回 JWT |
+| user-profile → user-service (gRPC) | ✅ | 返回用户资料 |
+| post-list → post-service (gRPC) | ✅ | 返回帖子列表 |
+| match-list → match-service (gRPC) | ✅ | 返回匹配列表（空） |
+
 ### 待完成
-- [ ] post-service / match-service 的 gRPC handler（当前 gateway 已配好客户端 stub，但后端服务还没实现 gRPC 接口）
 - [ ] JWT secret 从 application.yml 移到 Nacos 配置或环境变量
+- [ ] Docker Compose 一键启动全套服务
 - [ ] 集成测试（mock gRPC stub 测 controller）
 - [ ] Apifox 接口文档/测试脚本
 - [ ] rate limiting / 限流

@@ -305,7 +305,7 @@ public class PostGrpcService extends PostServiceGrpc.PostServiceImplBase {
                     request.getUserId(), request.getPageSize(), offset);
 
             List<PostInfo> items = feed.stream()
-                    .map(vo -> toPostInfo(vo, vo.isLiked()))
+                    .map(vo -> toPostInfo(vo, vo.getLiked() != null && vo.getLiked()))
                     .collect(Collectors.toList());
 
             int nextOffset = offset + items.size();
