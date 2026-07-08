@@ -27,6 +27,7 @@ message CreatePostRequest {
   string topic = 5;
   bool allow_comment = 6;
   repeated ImageItem images = 7;
+  int32 user_type = 8;       // 1=BH 2=DH
 }
 
 message ImageItem {
@@ -62,7 +63,8 @@ message PostInfo {
   repeated ImageVO images = 14;
   int64 created_at = 15;
   int64 updated_at = 16;
-  dating.common.Result result = 17;
+  int32 user_type = 17;      // 1=BH 2=DH
+  dating.common.Result result = 18;
 }
 
 message ImageVO {
@@ -156,6 +158,7 @@ message GetRecommendFeedRequest {
   int64 user_id = 1;
   int32 page_size = 2;
   string cursor = 3;          // "recOffset:csOffset"
+  int32 viewer_user_type = 4; // 1=BH 2=DH, 0=unisex
 }
 
 message GetRecommendFeedResponse {

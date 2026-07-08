@@ -57,6 +57,8 @@ message UserProfile {
   int64 created_at = 16;
   int64 updated_at = 17;
   dating.common.Result result = 18;
+  int32 beauty_score = 19;     // 颜值分 0-1000，DH/D0 排序用
+  string race = 20;            // 人种，DH/D0 排序用
 }
 
 message BatchGetProfilesRequest {

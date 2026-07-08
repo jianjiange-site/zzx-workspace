@@ -40,6 +40,8 @@ public class Post {
 
     private Double score;
 
+    private Integer userType;
+
     @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
 

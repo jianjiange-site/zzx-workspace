@@ -48,6 +48,32 @@ public class LikeRecordManager {
                 .gt(LikeRecord::getId, afterId)).intValue();
     }
 
+    /** 查询发给某目标的所有 like 记录（DH 计划 exclude 用） */
+    public List<LikeRecord> listByToUser(Long toUserId) {
+        return likeRecordMapper.selectList(new LambdaQueryWrapper<LikeRecord>()
+                .eq(LikeRecord::getToUserId, toUserId)
+                .eq(LikeRecord::getDeleted, false));
+    }
+
+    /**
+     * 批量检查哪些用户已经右划过当前用户（mutual like 检测）
+     *
+     * @param currentUserId 当前用户
+     * @param candidateIds  候选用户 ID 列表
+     * @return 已右划过当前用户的 candidateId 集合
+     */
+    public List<Long> listWhoLikedMeByCandidates(Long currentUserId, List<Long> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) return List.of();
+        return likeRecordMapper.selectObjs(new LambdaQueryWrapper<LikeRecord>()
+                .select(LikeRecord::getFromUserId)
+                .eq(LikeRecord::getToUserId, currentUserId)
+                .eq(LikeRecord::getDeleted, false)
+                .in(LikeRecord::getFromUserId, candidateIds))
+                .stream()
+                .map(id -> (Long) id)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     public void insert(LikeRecord record) {
         record.setLikedAt(Instant.now());
         likeRecordMapper.insert(record);

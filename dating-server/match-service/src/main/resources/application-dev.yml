@@ -33,6 +33,19 @@ spring:
 grpc:
   server:
     port: 9093
+  client:
+    payment-service:
+      address: 'discovery:///payment-service'
+      enableKeepAlive: true
+      negotiationType: PLAINTEXT
+    user-service:
+      address: 'discovery:///user-service'
+      enableKeepAlive: true
+      negotiationType: PLAINTEXT
+    im-service:
+      address: 'discovery:///im-service'
+      enableKeepAlive: true
+      negotiationType: PLAINTEXT
 
 mybatis-plus:
   configuration:

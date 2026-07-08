@@ -7,6 +7,7 @@ import com.dating.server.match.entity.Match;
 import com.dating.server.match.entity.SwipeHistory;
 import com.dating.server.match.entity.VisitRecord;
 import com.dating.server.match.exception.BizException;
+import com.dating.server.match.service.FeedService;
 import com.dating.server.match.service.MatchService;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,40 @@ import java.util.List;
 public class MatchGrpcService extends MatchServiceGrpc.MatchServiceImplBase {
 
     private final MatchService matchService;
+    private final FeedService feedService;
+
+    @Override
+    public void getTodayFeed(GetTodayFeedRequest request,
+                              StreamObserver<GetTodayFeedResponse> responseObserver) {
+        try {
+            int count = request.getCount() > 0 ? Math.min(request.getCount(), 20) : 5;
+            FeedService.FeedResult result = feedService.getTodayFeed(request.getUserId(), count);
+
+            GetTodayFeedResponse.Builder builder = GetTodayFeedResponse.newBuilder()
+                    .setResult(success())
+                    .setExhausted(result.exhausted());
+
+            for (FeedService.CardVO card : result.cards()) {
+                builder.addCards(Card.newBuilder()
+                        .setTargetUserId(card.targetUserId())
+                        .setTargetUserType(card.targetUserType())
+                        .setNickname(card.nickname() != null ? card.nickname() : "")
+                        .setAge(card.age() != null ? card.age() : 0)
+                        .addAllPhotoKeys(card.photoKeys() != null ? card.photoKeys() : List.of())
+                        .setBio(card.bio() != null ? card.bio() : "")
+                        .setDistanceKm(card.distanceKm() != null ? card.distanceKm() : -1));
+            }
+
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("GetTodayFeed error: userId={}", request.getUserId(), e);
+            responseObserver.onNext(GetTodayFeedResponse.newBuilder()
+                    .setResult(error(500, e.getMessage()))
+                    .build());
+            responseObserver.onCompleted();
+        }
+    }
 
     @Override
     public void swipe(SwipeRequest request, StreamObserver<SwipeResponse> responseObserver) {

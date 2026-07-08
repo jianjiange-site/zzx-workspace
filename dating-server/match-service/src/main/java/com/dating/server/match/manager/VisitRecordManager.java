@@ -44,6 +44,13 @@ VisitRecordManager {
         visitRecordMapper.insert(record);
     }
 
+    /** 查询发给某目标的所有访问记录（DH 计划 exclude 用） */
+    public List<VisitRecord> listByToUser(Long toUserId) {
+        return visitRecordMapper.selectList(new LambdaQueryWrapper<VisitRecord>()
+                .eq(VisitRecord::getToUserId, toUserId)
+                .eq(VisitRecord::getDeleted, false));
+    }
+
     /** 重复访问，增加计数 + 更新时间 */
     public void incrementVisit(VisitRecord existing) {
         VisitRecord update = new VisitRecord();

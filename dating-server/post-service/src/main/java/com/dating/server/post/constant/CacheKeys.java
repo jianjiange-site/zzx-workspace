@@ -28,6 +28,24 @@ public class CacheKeys {
         return PREFIX + "like:" + postId + ":" + userId;
     }
 
+    /** 热门池 key（FeedScoreJob 每 5 分钟重建） */
+    public static final String HOT_POOL_KEY = PREFIX + "feed:hot";
+
+    /** 按性别分桶的热门池 key：userType=1(BH) 2(DH)，0 则不区分 */
+    public static String hotPoolByGender(int userType) {
+        return userType > 0 ? PREFIX + "feed:hot:" + userType : HOT_POOL_KEY;
+    }
+
+    /** 冷启动池 key，按性别分桶 */
+    public static String coldPoolByGender(int userType) {
+        return userType > 0 ? PREFIX + "feed:cold:" + userType : PREFIX + "feed:cold";
+    }
+
+    /** 已读帖子去重 Set，key = post:seen:{userId}，TTL 7d */
+    public static String seenSet(Long userId) {
+        return PREFIX + "seen:" + userId;
+    }
+
     /** 写 coalescing 计数器前缀 */
     public static final String LIKE_COUNT_PREFIX = PREFIX + "count:like:";
     public static final String COMMENT_COUNT_PREFIX = PREFIX + "count:comment:";

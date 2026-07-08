@@ -21,6 +21,9 @@ public class CreatePostRequest {
     private Boolean allowComment = true;
 
     /** 图片列表：最多9张 */
+    /** 发布者用户类型：1=BH 2=DH 0=未知 */
+    private Integer userType;
+
     @Size(max = 9, message = "最多上传9张图片")
     private List<ImageItem> images;
 

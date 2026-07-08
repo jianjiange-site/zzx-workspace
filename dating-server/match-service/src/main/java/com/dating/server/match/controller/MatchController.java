@@ -1,6 +1,8 @@
 package com.dating.server.match.controller;
 
+import com.dating.server.match.service.FeedService;
 import com.dating.server.match.service.MatchService;
+import com.dating.server.match.service.QuotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,13 +14,52 @@ import java.util.List;
 public class MatchController {
 
     private final MatchService matchService;
+    private final FeedService feedService;
+    private final QuotaService quotaService;
 
-    /** 划卡 */
+    // ── Feed ──
+
+    /** 获取今日 feed 卡片 */
+    @GetMapping("/users/{userId}/feed")
+    public GetFeedResponse getFeed(@PathVariable Long userId,
+                                   @RequestParam(defaultValue = "5") int count) {
+        FeedService.FeedResult result = feedService.getTodayFeed(userId, count);
+        List<CardItem> cards = result.cards().stream()
+                .map(c -> new CardItem(c.targetUserId(), c.targetUserType()))
+                .toList();
+        return new GetFeedResponse(cards, result.exhausted());
+    }
+
+    // ── Swipe ──
+
+    /** 划卡（左滑/右滑） */
     @PostMapping("/swipe")
     public SwipeResponse swipe(@RequestBody SwipeRequest req) {
         var result = matchService.swipe(req.userId, req.targetUserId, req.direction, req.targetUserType);
         return new SwipeResponse(result.matched(), result.matchId());
     }
+
+    /** Super Hi（硬匹配） */
+    @PostMapping("/super-hi")
+    public SwipeResponse superHi(@RequestBody SuperHiRequest req) {
+        var result = matchService.swipe(req.userId, req.targetUserId, 3, req.targetUserType);
+        return new SwipeResponse(result.matched(), result.matchId());
+    }
+
+    // ── 配额 ──
+
+    /** 查询配额 */
+    @GetMapping("/users/{userId}/quota")
+    public QuotaResponse getQuota(@PathVariable Long userId) {
+        QuotaService.QuotaInfo info = quotaService.getQuota(userId);
+        String tier = quotaService.getUserTier(userId);
+        int superHiLimit = quotaService.getSuperHiFreeLimit(tier);
+        return new QuotaResponse(
+                info.rightSwipeUsed(), info.cardsUsed(), info.superHiUsed(),
+                superHiLimit, QuotaService.SUPER_HI_COIN_PRICE, tier);
+    }
+
+    // ── 划卡历史 ──
 
     /** 划卡历史 */
     @GetMapping("/users/{userId}/swipes")
@@ -34,6 +75,8 @@ public class MatchController {
                 .toList();
         return new ListResponse(items, hasMore ? list.get(pageSize - 1).getId() : null, hasMore);
     }
+
+    // ── Like ──
 
     /** 喜欢过我的人 */
     @GetMapping("/users/{userId}/likes")
@@ -58,6 +101,8 @@ public class MatchController {
         return new ReplyLikeResponse(result.matched(), result.matchId());
     }
 
+    // ── Match ──
+
     /** 匹配列表 */
     @GetMapping("/users/{userId}/matches")
     public ListResponse matches(@PathVariable Long userId,
@@ -74,6 +119,8 @@ public class MatchController {
                 .toList();
         return new ListResponse(items, hasMore ? list.get(pageSize - 1).getId() : null, hasMore);
     }
+
+    // ── Visit ──
 
     /** 访问记录 */
     @PostMapping("/visits")
@@ -95,9 +142,10 @@ public class MatchController {
         return new ListResponse(items, hasMore ? list.get(pageSize - 1).getId() : null, hasMore);
     }
 
-    // ── 请求/响应 DTO（内部 record） ──
+    // ── 请求/响应 DTO ──
 
     record SwipeRequest(long userId, long targetUserId, int direction, int targetUserType) {}
+    record SuperHiRequest(long userId, long targetUserId, int targetUserType) {}
     record SwipeResponse(boolean matched, Long matchId) {}
     record ReplyLikeRequest(long userId, boolean likeBack) {}
     record ReplyLikeResponse(boolean matched, Long matchId) {}
@@ -109,4 +157,10 @@ public class MatchController {
     record VisitorItem(long id, long fromUserId, int fromUserType, int visitCount, long visitedAt) {}
     record ListResponse(List<?> items, Long nextCursor, boolean hasMore) {}
     record WhoLikedMeResponse(List<LikedByItem> items, Long nextCursor, boolean hasMore, int totalCount) {}
+
+    record GetFeedResponse(List<CardItem> cards, boolean exhausted) {}
+    record CardItem(long targetUserId, int targetUserType) {}
+
+    record QuotaResponse(int rightSwipeUsed, int cardsUsed, int superHiUsed,
+                         int superHiFreeLimit, int superHiCoinPrice, String tier) {}
 }

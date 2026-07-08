@@ -43,6 +43,10 @@ public class FeedScoreJob {
     private static final String HOT_POOL_KEY = "post:feed:hot";
     /** 临时 key（写入时用，RENAME 切换到正式 key） */
     private static final String HOT_POOL_TEMP_KEY = "post:feed:hot:temp";
+    /** 性别分桶 hot pool 临时 key 模板 */
+    private static final String HOT_POOL_GENDER_TEMP = "post:feed:hot:%d:temp";
+    /** 性别分桶 hot pool 正式 key 模板 */
+    private static final String HOT_POOL_GENDER_KEY = "post:feed:hot:%d";
     /** 捞帖窗口：3 天内的帖子参与打分 */
     private static final int RECENT_DAYS = 3;
     /** 热门池最多保留帖子数 */
@@ -66,19 +70,31 @@ public class FeedScoreJob {
             return;
         }
 
-        // 第2步：内存算分
+        // 第2步：内存算分 + 写入主池和性别分桶
         int scored = 0;
+        // 用于性别分桶的临时 ZSet
+        stringRedisTemplate.delete(HOT_POOL_TEMP_KEY);
+        stringRedisTemplate.delete(String.format(HOT_POOL_GENDER_TEMP, 1));
+        stringRedisTemplate.delete(String.format(HOT_POOL_GENDER_TEMP, 2));
+
         for (Post post : recentPosts) {
             long hoursSinceCreated = Duration.between(post.getCreatedAt(), now).toHours();
             double score = hackerNewsScore(
                     Optional.ofNullable(post.getLikeCount()).orElse(0),
                     hoursSinceCreated);
 
-            // ZADD 到临时 key
+            // 写入主池
             stringRedisTemplate.opsForZSet()
                     .add(HOT_POOL_TEMP_KEY, String.valueOf(post.getId()), score);
 
-            // 更新 posts 表的 score 字段（供排序用）
+            // 写入性别分桶
+            int ut = post.getUserType() != null ? post.getUserType() : 0;
+            if (ut == 1 || ut == 2) {
+                stringRedisTemplate.opsForZSet()
+                        .add(String.format(HOT_POOL_GENDER_TEMP, ut), String.valueOf(post.getId()), score);
+            }
+
+            // 更新 posts 表的 score 字段
             if (Math.abs((post.getScore() != null ? post.getScore() : 0.0) - score) > 0.001) {
                 Post update = new Post();
                 update.setId(post.getId());
@@ -89,19 +105,23 @@ public class FeedScoreJob {
             scored++;
         }
 
-        // 裁剪：只保留前 1000 条
-        Long total = stringRedisTemplate.opsForZSet().zCard(HOT_POOL_TEMP_KEY);
-        if (total != null && total > POOL_MAX_SIZE) {
-            stringRedisTemplate.opsForZSet().removeRange(HOT_POOL_TEMP_KEY, 0,
-                    total - POOL_MAX_SIZE - 1);
-        }
+        // 裁剪并原子切换
+        trimAndSwap(HOT_POOL_TEMP_KEY, HOT_POOL_KEY);
+        trimAndSwap(String.format(HOT_POOL_GENDER_TEMP, 1), String.format(HOT_POOL_GENDER_KEY, 1));
+        trimAndSwap(String.format(HOT_POOL_GENDER_TEMP, 2), String.format(HOT_POOL_GENDER_KEY, 2));
 
-        // 第3步：RENAME 原子切换（正式 key 覆盖旧池）
-        stringRedisTemplate.delete(HOT_POOL_KEY);
-        stringRedisTemplate.rename(HOT_POOL_TEMP_KEY, HOT_POOL_KEY);
-
-        log.info("热门池重建完成: 计算了 {} 个帖子, 保留 {} 个", scored,
+        log.info("热门池重建完成: 计算了 {} 个帖子, 主池保留 {} 个", scored,
                 Math.min(scored, POOL_MAX_SIZE));
+    }
+
+    /** 裁剪 ZSet 到上限，RENAME 原子切换 */
+    private void trimAndSwap(String tempKey, String targetKey) {
+        Long total = stringRedisTemplate.opsForZSet().zCard(tempKey);
+        if (total != null && total > POOL_MAX_SIZE) {
+            stringRedisTemplate.opsForZSet().removeRange(tempKey, 0, total - POOL_MAX_SIZE - 1);
+        }
+        stringRedisTemplate.delete(targetKey);
+        stringRedisTemplate.rename(tempKey, targetKey);
     }
 
     /**

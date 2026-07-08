@@ -46,47 +46,48 @@ public class PostFanoutConsumer implements RocketMQListener<String> {
 
     @Override
     public void onMessage(String message) {
+        Map<String, Object> msg;
         try {
-            // 反序列化消息：{ postId, userId, createdAt }
-            Map<String, Object> msg = objectMapper.readValue(message,
+            msg = objectMapper.readValue(message,
                     new TypeReference<Map<String, Object>>() {});
-            Long postId = Long.valueOf(msg.get("postId").toString());
-            Long authorId = Long.valueOf(msg.get("userId").toString());
-            long createdAt = Long.parseLong(msg.get("createdAt").toString());
-
-            log.info("写扩散消费: postId={}, authorId={}", postId, authorId);
-
-            // === 第1步：查作者的粉丝列表 ===
-            List<Long> followerIds = userFollowManager.getFollowerIds(authorId);
-            if (followerIds.isEmpty()) {
-                log.debug("没有粉丝，跳过写扩散: postId={}", postId);
-                return;
-            }
-
-            // === 第2步：推送到每个粉丝的时间线 ===
-            for (Long followerId : followerIds) {
-                String timelineKey = CacheKeys.timeline(followerId);
-                String member = String.valueOf(postId);
-
-                // ZADD：添加帖子到时间线，score=发布时间戳（用于排序）
-                stringRedisTemplate.opsForZSet().add(timelineKey, member, createdAt);
-
-                // 裁剪：只保留最近的 100 条
-                Long total = stringRedisTemplate.opsForZSet().zCard(timelineKey);
-                if (total != null && total > TIMELINE_MAX_SIZE) {
-                    // 删除最旧的 (total - 100) 条（按 score 升序，前 N 条为最旧）
-                    stringRedisTemplate.opsForZSet().removeRange(
-                            timelineKey, 0L, total - TIMELINE_MAX_SIZE - 1);
-                }
-
-                // EXPIRE：刷新 TTL，7 天不活跃自动删除
-                stringRedisTemplate.expire(timelineKey, TIMELINE_TTL_DAYS, TimeUnit.DAYS);
-            }
-
-            log.info("写扩散完成: postId={}, 推送粉丝数={}", postId, followerIds.size());
         } catch (Exception e) {
-            // 消费失败记录日志，RocketMQ 会自动重试
-            log.error("写扩散消费失败: message={}", message, e);
+            // 反序列化失败：消息格式错误，不可重试，直接 ACK 跳过
+            log.error("写扩散消息反序列化失败, 跳过: message={}", message, e);
+            return;
         }
+
+        Long postId = Long.valueOf(msg.get("postId").toString());
+        Long authorId = Long.valueOf(msg.get("userId").toString());
+        long createdAt = Long.parseLong(msg.get("createdAt").toString());
+
+        log.info("写扩散消费: postId={}, authorId={}", postId, authorId);
+
+        // === 第1步：查作者的粉丝列表 ===
+        List<Long> followerIds = userFollowManager.getFollowerIds(authorId);
+        if (followerIds.isEmpty()) {
+            log.debug("没有粉丝，跳过写扩散: postId={}", postId);
+            return;
+        }
+
+        // === 第2步：推送到每个粉丝的时间线 ===
+        for (Long followerId : followerIds) {
+            String timelineKey = CacheKeys.timeline(followerId);
+            String member = String.valueOf(postId);
+
+            // ZADD：添加帖子到时间线，score=发布时间戳（用于排序）
+            stringRedisTemplate.opsForZSet().add(timelineKey, member, createdAt);
+
+            // 裁剪：只保留最近的 100 条
+            Long total = stringRedisTemplate.opsForZSet().zCard(timelineKey);
+            if (total != null && total > TIMELINE_MAX_SIZE) {
+                stringRedisTemplate.opsForZSet().removeRange(
+                        timelineKey, 0L, total - TIMELINE_MAX_SIZE - 1);
+            }
+
+            // EXPIRE：刷新 TTL，7 天不活跃自动删除
+            stringRedisTemplate.expire(timelineKey, TIMELINE_TTL_DAYS, TimeUnit.DAYS);
+        }
+
+        log.info("写扩散完成: postId={}, 推送粉丝数={}", postId, followerIds.size());
     }
 }

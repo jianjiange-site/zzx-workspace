@@ -6,7 +6,7 @@
 
     <groupId>com.dating.zzx.proto</groupId>
     <artifactId>dating-proto-zzx</artifactId>
-    <version>1.0</version>
+    <version>1.6</version>
     <packaging>jar</packaging>
 
     <name>Dating Proto :: zzx</name>

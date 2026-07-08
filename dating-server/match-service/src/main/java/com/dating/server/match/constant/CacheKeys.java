@@ -15,6 +15,11 @@ public class CacheKeys {
         return PREFIX + "swiped:" + userId;
     }
 
+    /** swipe 并发锁（Redisson），5s 自动释放 */
+    public static String swipeLock(Long userId, Long targetUserId) {
+        return PREFIX + "swipe:lock:" + userId + ":" + targetUserId;
+    }
+
     public static String pref(Long userId) {
         return PREFIX + "pref:" + userId;
     }
@@ -34,6 +39,9 @@ public class CacheKeys {
     public static String cursorOffline() {
         return PREFIX + "dh_plan:cursor:offline";
     }
+
+    /** D1 日更调度分布式锁 */
+    public static final String D1_SCHEDULER_LOCK = PREFIX + "d1:scheduler:lock";
 
     private CacheKeys() {}
 }

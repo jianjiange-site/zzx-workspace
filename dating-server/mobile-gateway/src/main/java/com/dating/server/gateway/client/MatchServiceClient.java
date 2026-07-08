@@ -78,6 +78,15 @@ public class MatchServiceClient {
         return matchStub.recordVisit(req);
     }
 
+    /** 拉今日 feed 卡片 */
+    public GetTodayFeedResponse getTodayFeed(long userId, int count) {
+        var req = GetTodayFeedRequest.newBuilder()
+                .setUserId(userId)
+                .setCount(count)
+                .build();
+        return matchStub.getTodayFeed(req);
+    }
+
     /** 谁看过我（游标分页，含 visit_count） */
     public ListVisitorsResponse listVisitors(long userId, int pageSize, long cursor) {
         var req = ListVisitorsRequest.newBuilder()

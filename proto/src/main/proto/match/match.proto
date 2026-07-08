@@ -8,6 +8,9 @@ option java_multiple_files = true;
 import "common/result.proto";
 
 service MatchService {
+  // 拉今日 feed 卡片
+  rpc GetTodayFeed(GetTodayFeedRequest) returns (GetTodayFeedResponse);
+
   // 划卡：左滑/右滑/超级喜欢，右滑双向检测匹配
   rpc Swipe(SwipeRequest) returns (SwipeResponse);
 
@@ -28,6 +31,29 @@ service MatchService {
 
   // 谁看过我
   rpc ListVisitors(ListVisitorsRequest) returns (ListVisitorsResponse);
+}
+
+// ── Feed ──
+
+message GetTodayFeedRequest {
+  int64 user_id = 1;
+  int32 count = 2;          // 移动端固定 5，<= 20
+}
+
+message GetTodayFeedResponse {
+  repeated Card cards = 1;
+  bool exhausted = 2;       // 当日卡片配额已用完
+  dating.common.Result result = 3;
+}
+
+message Card {
+  int64 target_user_id = 1;
+  int32 target_user_type = 2;  // 1=BH 2=DH
+  string nickname = 3;
+  int32 age = 4;
+  repeated string photo_keys = 5;
+  string bio = 6;
+  double distance_km = 7;      // BH 有距离，DH = -1
 }
 
 // ── 划卡 ──

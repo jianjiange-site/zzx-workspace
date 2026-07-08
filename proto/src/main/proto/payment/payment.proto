@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package dating.payment;
+
+option java_package = "com.dating.proto.payment";
+option java_multiple_files = true;
+
+import "common/result.proto";
+
+service PaymentService {
+  // 查询金币余额
+  rpc GetCoins(GetCoinsRequest) returns (GetCoinsResponse);
+
+  // 扣金币（幂等）
+  rpc ConsumeCoins(ConsumeCoinsRequest) returns (ConsumeCoinsResponse);
+
+  // 查订阅档位
+  rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
+
+  // 激活订阅
+  rpc ActivateSubscription(ActivateSubscriptionRequest) returns (ActivateSubscriptionResponse);
+}
+
+// ── 金币 ──
+
+message GetCoinsRequest {
+  int64 user_id = 1;
+}
+
+message GetCoinsResponse {
+  int64 coins = 1;             // total coins (free + paid)
+  int64 free_balance = 2;
+  int64 paid_balance = 3;
+  dating.common.Result result = 4;
+}
+
+message ConsumeCoinsRequest {
+  int64 user_id = 1;
+  int64 amount = 2;
+  string reason = 3;
+  string idempotency_key = 4;
+}
+
+message ConsumeCoinsResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 订阅 ──
+
+enum SubscriptionTier {
+  TIER_UNSPECIFIED = 0;
+  TIER_FREE = 1;
+  TIER_WEEKLY = 2;
+  TIER_MONTHLY = 3;
+  TIER_YEARLY = 4;
+}
+
+message GetSubscriptionRequest {
+  int64 user_id = 1;
+}
+
+message GetSubscriptionResponse {
+  SubscriptionTier tier = 1;
+  bool active = 2;
+  int64 expires_at = 3;        // epoch ms, nullable=0
+  dating.common.Result result = 4;
+}
+
+message ActivateSubscriptionRequest {
+  int64 user_id = 1;
+  SubscriptionTier tier = 2;
+  int32 duration_days = 3;
+  string source = 4;
+}
+
+message ActivateSubscriptionResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}

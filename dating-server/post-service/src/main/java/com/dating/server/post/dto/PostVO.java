@@ -21,6 +21,7 @@ public class PostVO {
     private Integer viewCount;
     private Double score;
     private Boolean liked;
+    private Integer userType;
     private List<ImageVO> images;
     private Instant createdAt;
     private Instant updatedAt;

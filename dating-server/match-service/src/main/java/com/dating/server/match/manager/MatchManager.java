@@ -40,4 +40,17 @@ public class MatchManager {
     public void insert(Match match) {
         matchMapper.insert(match);
     }
+
+    /** 查询用户的所有 match（DH 计划 exclude 用） */
+    public List<Match> listByUserId(Long userId) {
+        return matchMapper.selectList(new LambdaQueryWrapper<Match>()
+                .and(w -> w.eq(Match::getUserIdLow, userId)
+                           .or().eq(Match::getUserIdHigh, userId))
+                .eq(Match::getDeleted, false));
+    }
+
+    /** 按 ID 查询 */
+    public Match getById(Long id) {
+        return matchMapper.selectById(id);
+    }
 }

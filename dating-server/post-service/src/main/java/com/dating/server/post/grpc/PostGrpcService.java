@@ -52,6 +52,7 @@ public class PostGrpcService extends PostServiceGrpc.PostServiceImplBase {
             dto.setVisibility(request.getVisibility());
             dto.setTopic(request.getTopic());
             dto.setAllowComment(request.getAllowComment());
+            dto.setUserType(request.getUserType());
 
             if (request.getImagesCount() > 0) {
                 List<com.dating.server.post.dto.CreatePostRequest.ImageItem> images =
@@ -302,7 +303,7 @@ public class PostGrpcService extends PostServiceGrpc.PostServiceImplBase {
             }
 
             List<PostVO> feed = feedService.getRecommendFeed(
-                    request.getUserId(), request.getPageSize(), offset);
+                    request.getUserId(), request.getPageSize(), offset, request.getViewerUserType());
 
             List<PostInfo> items = feed.stream()
                     .map(vo -> toPostInfo(vo, vo.getLiked() != null && vo.getLiked()))
@@ -346,6 +347,7 @@ public class PostGrpcService extends PostServiceGrpc.PostServiceImplBase {
                 .setLiked(liked)
                 .setCreatedAt(vo.getCreatedAt() != null ? vo.getCreatedAt().toEpochMilli() : 0)
                 .setUpdatedAt(vo.getUpdatedAt() != null ? vo.getUpdatedAt().toEpochMilli() : 0)
+                .setUserType(vo.getUserType() != null ? vo.getUserType() : 0)
                 .setResult(success());
 
         if (vo.getImages() != null) {
@@ -380,6 +382,7 @@ public class PostGrpcService extends PostServiceGrpc.PostServiceImplBase {
                 .setLiked(liked)
                 .setCreatedAt(post.getCreatedAt() != null ? post.getCreatedAt().toEpochMilli() : 0)
                 .setUpdatedAt(post.getUpdatedAt() != null ? post.getUpdatedAt().toEpochMilli() : 0)
+                .setUserType(post.getUserType() != null ? post.getUserType() : 0)
                 .setResult(success());
 
         if (images != null) {

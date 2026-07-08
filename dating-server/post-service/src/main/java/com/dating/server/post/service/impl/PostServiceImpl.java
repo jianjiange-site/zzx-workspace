@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -46,6 +47,7 @@ public class PostServiceImpl implements PostService {
         post.setShareCount(0);
         post.setViewCount(0);
         post.setScore(0.0);
+        post.setUserType(request.getUserType());
         postManager.insert(post);
 
         // 写入图片
@@ -65,7 +67,8 @@ public class PostServiceImpl implements PostService {
         postFanoutProducer.sendPostCreated(post.getId(), userId, post.getCreatedAt().toEpochMilli());
 
         // 冷启动入池：新帖子马上能出现在推荐流里
-        feedService.addToColdPool(post.getId(), post.getCreatedAt().toEpochMilli());
+        feedService.addToColdPool(post.getId(), post.getCreatedAt().toEpochMilli(),
+                Optional.ofNullable(request.getUserType()).orElse(0));
 
         log.info("帖子创建成功: postId={}, userId={}", post.getId(), userId);
         return toPostVO(post, null, false);

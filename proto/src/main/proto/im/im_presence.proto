@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package dating.im;
+
+option java_package = "com.dating.proto.im";
+option java_multiple_files = true;
+
+import "common/result.proto";
+
+service ImPresence {
+  // 获取用户在线状态
+  rpc GetPresence(GetPresenceRequest) returns (GetPresenceResponse);
+
+  // 批量获取在线状态
+  rpc BatchGetPresence(BatchGetPresenceRequest) returns (BatchGetPresenceResponse);
+
+  // 上报心跳
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // 供 match-service OnlinePlanGenerator 扫在线用户（读 im:presence:online ZSet）
+  rpc ListOnlineUserIds(ListOnlineUserIdsRequest) returns (ListOnlineUserIdsResponse);
+
+  // 供 match-service OfflinePlanGenerator 扫离线用户（读 user_online_session PG）
+  rpc ListRecentOfflineUsers(ListRecentOfflineUsersRequest) returns (ListRecentOfflineUsersResponse);
+
+  // 供 match-service match 创建时建会话
+  rpc EnsureConversation(EnsureConversationRequest) returns (EnsureConversationResponse);
+
+  // 供 match-service match 创建时发系统消息
+  rpc SendSystemMessage(SendSystemMessageRequest) returns (SendSystemMessageResponse);
+
+  // 供 match-service DH 匹配后触发 ai-chat 开场白
+  rpc TriggerDhOpening(TriggerDhOpeningRequest) returns (TriggerDhOpeningResponse);
+}
+
+message GetPresenceRequest {
+  int64 user_id = 1;
+}
+
+message Presence {
+  int64 user_id = 1;
+  bool online = 2;
+  int64 last_heartbeat_at = 3; // epoch ms, 0=never
+  string status = 4;           // ONLINE / AWAY / BUSY
+}
+
+message GetPresenceResponse {
+  Presence presence = 1;
+  dating.common.Result result = 2;
+}
+
+message BatchGetPresenceRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BatchGetPresenceResponse {
+  repeated Presence presences = 1;
+  dating.common.Result result = 2;
+}
+
+message HeartbeatRequest {
+  int64 user_id = 1;
+  string status = 2;  // ONLINE / AWAY / BUSY, 默认 ONLINE
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 供 match-service OnlinePlanGenerator ──
+message ListOnlineUserIdsRequest {
+  int64 since_ms = 1;   // 闭区间下界 (epoch ms)
+  int64 until_ms = 2;   // 开区间上界
+  int32 limit    = 3;   // 默认 5000, 上限 50000
+}
+
+message ListOnlineUserIdsResponse {
+  repeated int64 user_ids = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 供 match-service OfflinePlanGenerator ──
+message ListRecentOfflineUsersRequest {
+  int64 since_ms = 1;   // 闭区间下界
+  int64 until_ms = 2;   // 开区间上界
+  int32 limit    = 3;   // 默认 5000
+}
+
+message ListRecentOfflineUsersResponse {
+  repeated int64 user_ids = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 供 match-service 建会话 ──
+message EnsureConversationRequest {
+  int64 user_id_a = 1;
+  int64 user_id_b = 2;
+}
+
+message EnsureConversationResponse {
+  string conversation_id = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 供 match-service 发系统消息 ──
+message SendSystemMessageRequest {
+  int64 to_user_id = 1;
+  string title = 2;
+  string body = 3;
+  map<string, string> extra = 4;
+}
+
+message SendSystemMessageResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}
+
+// ── 供 match-service 触发 DH 开场白 ──
+message TriggerDhOpeningRequest {
+  int64 dh_user_id = 1;
+  int64 target_user_id = 2;
+}
+
+message TriggerDhOpeningResponse {
+  bool success = 1;
+  dating.common.Result result = 2;
+}

@@ -309,6 +309,8 @@ public class UserProfileGrpc extends UserProfileServiceGrpc.UserProfileServiceIm
                 .setRegulationStatus(user.getRegulationStatus() != null ? user.getRegulationStatus() : 0)
                 .setCreatedAt(user.getCreatedAt() != null ? user.getCreatedAt().toEpochMilli() : 0)
                 .setUpdatedAt(user.getUpdatedAt() != null ? user.getUpdatedAt().toEpochMilli() : 0)
+                .setBeautyScore(user.getBeautyScore() != null ? user.getBeautyScore() : 0)
+                .setRace(user.getRace() != null ? user.getRace() : "")
                 .setResult(success());
 
         // 解析头像 JSON

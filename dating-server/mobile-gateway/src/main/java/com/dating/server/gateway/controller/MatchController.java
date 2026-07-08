@@ -23,6 +23,19 @@ public class MatchController {
 
     private final MatchServiceClient matchServiceClient;
 
+    /**
+     * 拉今日 feed 卡片（首页推荐队列）
+     * count: 移动端固定 5，最大 20
+     * 返回 { cards: [{targetUserId, targetUserType, nickname, age, photoKeys, bio, distanceKm}], exhausted }
+     */
+    @GetMapping("/feed")
+    public R<Map<String, Object>> getTodayFeed(HttpServletRequest request,
+                                                @RequestParam(defaultValue = "5") int count) {
+        long userId = (Long) request.getAttribute("userId");
+        var resp = matchServiceClient.getTodayFeed(userId, count);
+        return R.ok(ProtoJson.toMap(resp));
+    }
+
     /** 划卡：右滑双向检测是否匹配，返回 matched + matchId */
     @PostMapping("/swipe")
     public R<Map<String, Object>> swipe(HttpServletRequest request, @RequestBody Map<String, Object> body) {
