@@ -1,262 +1,288 @@
-# user-service 开发进度
+# 项目进度总览
 
-## 状态：HTTP 接口全部完成并验证 ✅
-
-- Tomcat 8080 ✓
-- gRPC 9090 ✓
-- Nacos 注册 ✓
-- 数据库连接 ✓
-- HTTP 链路全通 ✓（Controller → Service → Manager → MyBatis → PostgreSQL）
+最后更新：2026-07-09（OpenIM 集成 + post-service 修复）
 
 ---
 
-## 已完成
-
-### 数据库（Flyway V1）
-- `user_info` — 用户主表（昵称/性别/生日/年龄/Bio/职业/学历/身高/偏好位置/头像JSONB/pending/监管状态）
-- `user_login_phone` — 手机号登录表
-- `user_third_party_registration` — 第三方登录表
-- `user_device_registration` — 设备注册表
-- `user_interest` — 兴趣标签表
-
-### Entity 层（5个）
-- UserInfo / UserLoginPhone / UserThirdPartyRegistration / UserDeviceRegistration / UserInterest
-
-### Mapper 层（5个）
-- 5 个 MyBatis-Plus Mapper 接口
-
-### Manager 层（5个）
-- **UserInfoManager** — 缓存读（Redis TTL 24h）+ 直接 DB 读写 + cache evict
-- **UserInterestManager** — 缓存读（TTL 7d）+ 全量替换
-- **UserLoginPhoneManager** — 按手机号查 + 增删
-- **UserThirdPartyManager** — 第三方账号查 + 增删
-- **UserDeviceManager** — 设备查 + 增删
-
-### Service 层（5个）
-- **UserIdentityService** — 3 种登录注册流（手机号/第三方/设备），libphonenumber 手机号归一化
-- **UserBanService** — 封禁检查，Redis 缓存 5 分钟
-- **UserProfileService** — 资料 CRUD + onboarding
-- **UserAvatarService** — 头像 presign URL 直传（S3 占位）
-- **UserInterestService** — 兴趣标签全量替换
-
-### HTTP Controller（5个，REST 接口全部完成）
-- `POST /api/v1/identity/phone` — 手机号登录/注册
-- `POST /api/v1/identity/third-party` — 第三方登录/注册
-- `POST /api/v1/identity/device` — 设备登录/注册
-- `GET /api/v1/ban/{userId}` — 封禁检查
-- `GET /api/v1/profiles/{userId}` — 查资料
-- `POST /api/v1/profiles/batch` — 批量查资料
-- `PUT /api/v1/profiles/{userId}` — 更新资料
-- `POST /api/v1/profiles/{userId}/onboarding` — onboarding
-- `PUT /api/v1/interests/replace` — 兴趣替换
-- `POST /api/v1/avatars/presign` — 头像 presign
-- `POST /api/v1/avatars/confirm` — 头像确认
-
-### 启动验证（2026-06-30 curl 实测通过）
-- `GET /api/v1/ban/9999999999999` → `{"banned":false}`
-- `GET /api/v1/profiles/9999999999999` → `code: 10001`（用户不存在，符合预期）
-
-### 基础设施
-- Nacos 配置 `user-service-dev.yaml`（zzx-dating-dev 命名空间）
-- Redis 缓存（cache aside 模式）
-- Flyway 迁移（已禁用，表已建好）
-- 虚拟线程开启
-- gRPC 端口 9090，Actuator（health/info/prometheus）
-
-## 待完成
-
-- [ ] **gRPC handler**（UserIdentityGrpcImpl / UserProfileGrpcImpl 等，proto 需先发布）
-- [ ] **集成测试**（单元/集成测试，目前 0 测试文件）
-- [ ] **dating-common 模块 ObjectStorage 接入**（头像 presign S3 URL 实现）
-- [ ] **运营封禁 Redis Set**（UserBanServiceImpl TODO）
-- [ ] **批量查兴趣优化**（UserProfileServiceImpl TODO）
-
----
-
-## mobile-gateway 开发进度
-
-### 状态：REST → gRPC BFF 搭建完成并验证 ✅（2026-07-06）
-
-- Tomcat 8081 ✓
-- Nacos 注册 ✓
-- gRPC 路由 ✓（user-service 全链路通）
-- 登录链路通过 gateway 验证 ✅
-- 资料查询链路通过 gateway 验证 ✅
-
-### 架构定位
+## 总体进度：8 个服务 + ai-chat
 
 ```
-App/H5 (HTTP/JSON)
-     ↕
-mobile-gateway (端口 8081) — REST → gRPC BFF
-     ↕ gRPC（net.devh）
-user-service  |  post-service  |  match-service  |  im-service
+user-service     ██████████████░░  75%  ✅ 核心完整，缺增强功能
+post-service     ████████████░░░░  70%  ✅ 核心完整，缺增强功能
+mobile-gateway   ██████████████░░  75%  ✅ REST→gRPC BFF 已验证，三服务全链路通
+match-service    ████████████████░  85%  ✅ 核心+增强基本完整，缺少量集成
+payment-service  ██████████████░░  75%  ✅ 金币+订阅完整，缺PayPal/提现
+im-service       ████████████░░░░  65%  ✅ OpenIM 核心集成，缺回调增强
+example-service  ██░░░░░░░░░░░░░░  10%  🏗️ 骨架
+ai-chat          ██░░░░░░░░░░░░░░  10%  📦 骨架占位
 ```
 
-gateway 不做任何业务逻辑，只做协议转换（HTTP/JSON ↔ gRPC/Protobuf）、鉴权（JWT）、聚合裁剪字段。
-
-### 代码结构（13 Java 文件）
-
-| 层 | 文件 | 说明 |
-|---|---|---|
-| 入口 | `MobileGatewayApplication.java` | Spring Boot 启动类 |
-| Auth | `JwtUtil.java` | HMAC-SHA256 签发/校验（jjwt 0.12.x） |
-| Auth | `JwtAuthFilter.java` | OncePerRequestFilter，排除 `/api/v1/auth/` |
-| Client | `UserServiceClient.java` | 4 个 @GrpcClient stub（identity/profile/ban/interest） |
-| Client | `PostServiceClient.java` | 1 个 stub，9 个 RPC |
-| Client | `MatchServiceClient.java` | 1 个 stub，7 个 RPC |
-| Common | `R.java` | 统一 JSON 响应体 `{code, message, data}` |
-| Common | `ProtoJson.java` | Proto → JSON → Map 转换（JsonFormat.printer） |
-| Controller | `AuthController.java` | 3 个登录端点（phone/third-party/device）→ 签发 JWT |
-| Controller | `UserController.java` | 6 个端点（资料/兴趣/封禁） |
-| Controller | `PostController.java` | 9 个端点（帖子 CRUD/点赞/评论/推荐） |
-| Controller | `MatchController.java` | 7 个端点（滑动/喜欢/匹配/访客） |
-| Exception | `GlobalExceptionHandler.java` | 400/500 统一处理 |
-
-### API 清单
-
-**Auth（不需要 JWT）**
-- `POST /api/v1/auth/login/phone` — 手机验证码登录
-- `POST /api/v1/auth/login/third-party` — 三方登录
-- `POST /api/v1/auth/login/device` — 设备快速登录
-
-**User（需要 JWT）**
-- `GET /api/v1/users/{userId}/profile` — 查资料
-- `PUT /api/v1/users/{userId}/profile` — 更新资料
-- `GET /api/v1/users/{userId}/interests` — 查兴趣标签
-- `PUT /api/v1/users/{userId}/interests` — 替换兴趣标签
-- `GET /api/v1/users/{userId}/ban/status` — 封禁检查
-
-**Post（需要 JWT）**
-- `POST /api/v1/posts` — 发帖
-- `GET /api/v1/posts/{postId}` — 查帖子
-- `DELETE /api/v1/posts/{postId}` — 删帖
-- `GET /api/v1/posts/user/{userId}` — 用户帖子列表
-- `POST /api/v1/posts/{postId}/like` — 点赞
-- `DELETE /api/v1/posts/{postId}/like` — 取消点赞
-- `GET /api/v1/posts/{postId}/like/status` — 点赞状态
-- `POST /api/v1/posts/{postId}/comments` — 评论
-- `GET /api/v1/posts/{postId}/recommend` — feed 推荐
-
-**Match（需要 JWT）**
-- `POST /api/v1/matches/swipe` — 滑动
-- `GET /api/v1/matches/swipes` — 滑动记录
-- `GET /api/v1/matches/liked-me` — 喜欢我的
-- `POST /api/v1/matches/reply-like` — 回复喜欢
-- `GET /api/v1/matches/matches` — 匹配列表
-- `POST /api/v1/matches/visit` — 访问
-- `GET /api/v1/matches/visitors` — 访客列表
-
-### 验证通过（curl 实测）
-- 设备登录 → 返回 JWT token ✅
-- 带 token 查资料 → 返回用户资料 ✅
-- 无 token/过期 token → 401 ✅
-
-### 基础设施
-- 端口 8081（避免跟 user-service 8080 冲突）
-- bootstrap.yml → Nacos 服务注册
-- JWT secret 暂存 application.yml（后续移到环境变量/Nacos）
-- Proto 契约 `dating-proto-zzx:1.0`（Nexus 包）
-
-### 遇到的坑
-- `discovery://service-name` 双斜杠导致 DiscoveryClientNameResolver 解析失败 → 改为 `discovery:/service-name`（单斜杠）
-- Spring Boot 3.x validation 从 web starter 解耦 → 需手动加 `spring-boot-starter-validation`
-- 父 pom `<dependencies>` 包含 mybatis-plus 强制要求 DataSource → `spring.autoconfigure.exclude` 排除
-- Nacos namespace 显示名 `zzx-dating-dev` vs UUID `8656224a-...` 不一致，配置 data ID 需确认实际 namespace
-
-### 验证状态（2026-07-07 三服务全链路通过）
-| 链路 | 状态 | 说明 |
-|---|---|---|
-| user-auth → user-service (gRPC) | ✅ | 设备登录返回 JWT |
-| user-profile → user-service (gRPC) | ✅ | 返回用户资料 |
-| post-list → post-service (gRPC) | ✅ | 返回帖子列表 |
-| match-list → match-service (gRPC) | ✅ | 返回匹配列表（空） |
-
-### 待完成
-- [ ] JWT secret 从 application.yml 移到 Nacos 配置或环境变量
-- [ ] Docker Compose 一键启动全套服务
-- [ ] 集成测试（mock gRPC stub 测 controller）
-- [ ] Apifox 接口文档/测试脚本
-- [ ] rate limiting / 限流
-- [ ] 请求日志 MDC traceId
+**目前已投入：约 10 天（2026-06-29 ~ 2026-07-08）**
+**预计剩余：约 2-3 个月（边学边做）**
 
 ---
 
-## post-service 开发进度
+## 各服务详情
 
-### 状态：CRUD API 全部完成并验证 ✅（2026-07-01）
+### ✅ user-service（75%）
 
-- Tomcat 8082 ✓
-- gRPC 9092 ✓
-- Nacos 注册 ✓
-- 数据库连接 ✓
-- Redis 缓存 ✓
-- HTTP 链路全通 ✓（curl 实测：发帖/查帖/点赞/评论/列表）
+**状态**：HTTP + gRPC 全链路就绪，已验证通过
 
-### 数据库（Flyway V1）
-- `posts` — 帖子主表（content/type/visibility/topic/score 等）
-- `post_images` — 帖子图片表
-- `post_stats` — 帖子统计表（写 coalescing 目标表）
-- `post_likes` — 点赞表（UNIQUE post_id + user_id）
-- `post_comments` — 评论表（parent_id 支持嵌套）
-- `shedlock` — 多实例定时任务互斥锁
+- ✅ 身份系统：手机号/三方/设备注册登录（`UserIdentityService` + gRPC）
+- ✅ 资料 CRUD：`UserProfileService` + gRPC + HTTP Controller
+- ✅ 头像上传：S3 presigned（`S3ObjectStorage`）
+- ✅ 兴趣标签：`UserInterestService` + gRPC + Controller
+- ✅ 封禁系统：`UserBanService` + gRPC + Controller
+- ✅ Redis 缓存（cache aside）
+- ✅ **用户发现服务（DH/BH 召回）**：`UserDiscoveryService` + `UserDiscoveryServiceImpl`（listDhCandidates / nearbyUsers）
+- ✅ gRPC 4 个：UserProfileGrpc / UserIdentityGrpc / UserBanGrpc / UserInterestGrpc
+- ✅ HTTP 5 个 Controller（identity / profile / avatar / ban / interest）
+- ✅ 集成测试框架 + 2 个测试类
+- ✅ Flyway 迁移（V1 init + V2 add match fields）
 
-### 代码结构
-| 层 | 文件 | 说明 |
-|---|---|---|
-| Entity | 5 个 | Post / PostImage / PostStats / PostLike / PostComment |
-| Mapper | 5 个 | BaseMapper 继承 |
-| Manager | 4 个 | 缓存读写 + 失效（Redis TTL） |
-| Service | 3 个 | PostService / PostLikeService / PostCommentService |
-| Controller | 2 个 | PostController + PostInteractionController |
-| DTO | 4 个 | CreatePostRequest / PostVO / CreateCommentRequest / PostCommentVO |
-| Exception | 2 个 | BizException / ErrorCodes |
-| Config | - | Jackson、Redisson 配置类 |
+**待完成**：
+- ❌ 管理后台封禁增强（批量/搜索/审计）
+- ❌ 寒暄消息模板管理（`GreetingTemplate`）
+- ❌ 头像审核/CDN 刷新
+- ❌ 更完善的集成测试
 
-### API 清单（REST 接口全部完成）
-- `POST /api/v1/posts?userId=` — 发帖
-- `GET /api/v1/posts/{postId}?currentUserId=` — 查帖子详情
-- `DELETE /api/v1/posts/{postId}?userId=` — 删帖
-- `GET /api/v1/posts/user/{userId}?currentUserId=&offset=&limit=` — 用户帖子列表
-- `POST /api/v1/posts/{postId}/like?userId=` — 点赞
-- `DELETE /api/v1/posts/{postId}/like?userId=` — 取消点赞
-- `GET /api/v1/posts/{postId}/like/status?userId=` — 点赞状态
-- `POST /api/v1/posts/{postId}/comments?userId=` — 发表评论
-- `GET /api/v1/posts/{postId}/comments` — 评论列表
-- `DELETE /api/v1/posts/comments/{commentId}?userId=` — 删除评论
+---
 
-### curl 实测通过
-- 发帖 ✅ → 返回带 id 的 PostVO
-- 查帖 ✅ → 含图片列表
-- 点赞 ✅ → 状态 true
-- 评论 ✅ → 返回 CommentVO
-- 用户帖子列表 ✅ → 含点赞数/评论数
+### ✅ post-service（70%）
 
-### 基础设施
-- Nacos 配置 `post-service-dev.yaml`（zzx-dating-dev 命名空间）
-- 远端 PG 5433 / Redis 6380 / RocketMQ 9876
-- 密码用 Windows 环境变量（`DB_PASSWORD` / `REDIS_PASSWORD`）
-- 启动脚本 `run-post-service.sh`（已 .gitignore，不提交密码）
-- bootstrap.yml → Nacos 服务注册发现
-- application-dev.yml → `${ENV}` 占位，无明文密码
+**状态**：CRUD + 写扩散 + Feed 排序 + 写合并全就绪
 
-### 遇到的坑
-- Nacos 配置因 `spring-cloud-starter-bootstrap` 优先级低于 `application-dev.yml`，Nacos 中的密码无法覆盖本地空值 → 改走环境变量
-- Flyway 校验和不匹配（之前脏数据）→ `mvn flyway:repair` 修复
-- Maven 用 Java 8 运行 → 需设 `JAVA_HOME=C:\develop\Java\jdk-21`
-- Nacos namespace 显示名 vs UUID 问题
+- ✅ 帖子 CRUD：`PostService` + `PostController`
+- ✅ 评论系统：`PostCommentService`（Redis ZSet 200 条缓存）
+- ✅ 点赞：`PostLikeService`
+- ✅ 关注/取关：`UserFollowManager`
+- ✅ Feed 时间线 + HN 热度排序：`FeedService` + `FeedScoreJob`
+- ✅ **写扩散 RocketMQ**：`PostFanoutProducer` → `PostFanoutConsumer`
+- ✅ **写合并 Coalescing**：Redis incr → 定时刷 DB（`PostStatsFlushJob`）
+- ✅ gRPC：`PostGrpcService`（9 个 RPC）
+- ✅ Flyway 迁移（3 个版本：V1 post tables + V2 follow + V20260707_02 user_type）
+- ✅ ShedLock 分布式定时任务
+- ✅ Nacos 注册 / Redis 缓存
 
-## 待完成（post-service）
+**待完成**：
+- ❌ 帖子举报/审核体系
+- ❌ Feed 池分桶（按 gender/age）
+- ❌ 三步合并 Feed（缓存池 + 写扩散收件箱 + 关注池冷启动）
+- ❌ Bloom 过滤器去重
+- ❌ H5 端 feed 适配
 
-### 短期
-- [ ] 写扩散（RocketMQ fanout）— 发帖后推送好友 feed
-- [ ] Feed 流接口 — 热池 + 好友时间线 + 冷启动 3 路合并
-- [ ] 写 coalescing — Redis INCR 计数 + 定时刷到 PG
-- [ ] 帖子分数计算 — 定时任务更新 Hacker News 分数
-- [ ] gRPC handler — 给 user-service / im-service 调用
+**新增（07-09）**：
+- ✅ UserClient gRPC 客户端（getFriendUserIds / batchGetGenders）
+- ✅ FeedScoreJob HN 公式修复：`(10 + 1.0*likes + 3.0*comments) / (hours+2)^1.5`
+- ✅ PostFanoutConsumer gRPC 优先 + 本地降级
 
-### 长期
-- [ ] Apifox 测试脚本 / 接口文档
-- [ ] 单元测试 + 集成测试
-- [ ] 对接 mobile-gateway
-- [ ] 解决 Nacos 配置优先级问题
+---
+
+### ✅ mobile-gateway（75%）
+
+**状态**：REST→gRPC BFF 完整实现，三服务全链路已验证通过（07-07）
+
+- ✅ JWT HMAC-SHA256 签发/验签/过滤器（`JwtUtil` + `JwtAuthFilter`）
+- ✅ 3 种登录：手机验证码 / 三方授权 / 设备快速登录（`AuthController`）
+- ✅ gRPC 客户端：
+  - `UserServiceClient`（4 stub：identity/profile/ban/interest）
+  - `PostServiceClient`（1 stub, 9 RPC）
+  - `MatchServiceClient`（1 stub, 7 RPC）
+- ✅ REST → gRPC 协议转换（`ProtoJson`）
+- ✅ UserController / PostController / MatchController 全部实现（共 22+ 个端点）
+- ✅ Nacos 服务发现（`discovery:/` 单斜杠）
+- ✅ 统一响应体 `R<T>` + 全局异常处理
+- ✅ 端口 8081（避免跟 user-service 8080 冲突）
+
+**已验证链路**：
+| 链路 | 状态 |
+|---|---|
+| user-auth → user-service (gRPC) | ✅ |
+| user-profile → user-service (gRPC) | ✅ |
+| post-list → post-service (gRPC) | ✅ |
+| match-list → match-service (gRPC) | ✅ |
+
+**待完成**：
+- ❌ JWT secret 从 application.yml 移到 Nacos / 环境变量
+- ❌ Docker Compose 一键启动
+- ❌ 集成测试（mock gRPC stub）
+- ❌ rate limiting / 限流
+- ❌ 请求日志 MDC traceId
+
+---
+
+### ✅ match-service（85%）
+
+**状态**：核心划卡 + 增强功能基本完整，仅缺少量集成和联调
+
+- ✅ DB Schema + Entity + Mapper（6 张表：LikeRecord / Match / MatchOutbox / SwipeHistory / VisitRecord / DhInteractionTask）
+- ✅ Manager 层（5 个）：LikeRecord / Match / MatchOutbox / SwipeHistory / VisitRecord
+- ✅ **核心划卡匹配**：`MatchServiceImpl.swipe()` — 方向校验/幂等/并发锁/配额扣减/like记录/双向匹配/DH延迟匹配
+- ✅ **Super Hi**：付费硬匹配，含配额扣减+金币购买兜底
+- ✅ **回复喜欢**：`replyLike()` — 双向匹配触发
+- ✅ **访问记录**：recordVisit / listVisitors
+- ✅ **QuotaService** — Redis HASH原子扣减（右划/卡片/Super Hi），按订阅档位定价（FREE/WEEKLY/MONTHLY/YEARLY），含配额回滚机制
+- ✅ **OfflinePlanGenerator** — 每20分钟扫离线用户，生成DH互动计划
+- ✅ **OnlinePlanGenerator** — 每1分钟扫在线用户，为BH生成DH like/visit任务，含冷却/去重/倾向分配
+- ✅ **DhInteractionSchedulerJob** — 每30秒轮询到期DH任务，执行LIKE/VISIT动作 + 双向match检测
+- ✅ **MatchOutboxRetryJob** — 每30秒轮询outbox，指数退避重试（最长1h），超5次死信，含ENSURE_CONVERSATION处理
+- ✅ **D1QueueScheduler** — D1队列调度
+- ✅ **CandidateRecaller** — D0/D1召回逻辑（DH池+BH池）
+- ✅ **ColdStartService** — 冷启动buildAndPush（323行）
+- ✅ **Recommend 体系**：PreferenceBuilder / PreferenceProfile / Ranker / D1Generator 全部实现
+- ✅ **gRPC server**（7 个 RPC）+ HTTP Controller（7 个端点，含 /feed）
+- ✅ **对接客户端**：
+  - `UserServiceClient` — 查询用户档案 + DH候选
+  - `PaymentClient` — 查询订阅档位 + 扣金币（含fallback）
+  - `ImServiceClient` — 在线用户列表 + 创建会话 + 发系统消息
+- ✅ **FeedServiceImpl** — LPOP消费模型，配额检查/已划过过滤/user-service batchGetProfile拼装CardVO
+- ✅ Proto 定义（`match.proto`）+ dating-proto-zzx:1.5
+- ✅ Redis 划卡去重（`match:swiped:<userId>` SET + isMember检查）
+- ✅ ShedLock 分布式定时任务
+
+**待完成（按优先级）**：
+1. ❌ 支付对接联调（Super Hi 金币扣减需 payment-service 实际运行）
+2. ❌ im-service 集成联调（ensureConversation / sendSystemMessage）
+3. ❌ 集成测试覆盖
+
+---
+
+### ✅ payment-service（75%）
+
+**状态**：金币模块+订阅模块完整实现，gRPC+HTTP双协议就绪
+
+- ✅ Flyway 建表：`coin_account` / `coin_ledger` / `user_subscription`
+- ✅ **CoinService** — 双账户（免费+付费），先扣免费再扣付费，幂等扣减（idempotency_key+唯一索引兜底）
+- ✅ **SubscriptionService** — FREE/WEEKLY/MONTHLY/YEARLY 四档，只升不降+时长顺延
+- ✅ PaymentController — HTTP：getCoins / consumeCoins / getSubscription / activateSubscription
+- ✅ PaymentGrpcService — gRPC：getCoins / consumeCoins / getSubscription / activateSubscription
+- ✅ 异常体系：BizException + ErrorCodes
+- ✅ Nacos 注册
+
+**待完成**：
+- ❌ PayPal 支付全链路（下单/Webhook验签/发奖）
+- ❌ 提现模块
+- ❌ 商品定义对接
+
+---
+
+### 🏗️ im-service（65%）
+
+**状态**：OpenIM 核心集成完成，回调/出站/扣费等为 stub
+
+- ✅ **在线状态**：Redis Hash `im:presence:<userId>`（status + heartbeat，TTL 5分钟自动过期）
+- ✅ **在线 ZSet**：`im:presence:online`（score = 上线时间戳，按时间范围查询）
+- ✅ ImPresenceService（159行）— getPresence / batchGetPresence / heartbeat / listOnlineUserIds / listRecentOfflineUsers
+- ✅ ImPresenceGrpcService — 8 个 RPC
+- ✅ ImPresenceController — HTTP：heartbeat / getPresence
+- ✅ **OpenIM 配置**：`OpenIMProperties` — apiUrl / wsUrl / adminSecret 配置类
+- ✅ **OpenIM REST 客户端**：`OpenImApiClient` — 管理员 Token 缓存、用户注册、用户 Token 签发、建单聊会话、发送消息
+- ✅ **OpenIM 业务服务**：`OpenImService` — 懒注册（获取 Token 失败自动注册后重试）、双向会话创建、系统消息发送
+- ✅ **ensureConversation**：对接 OpenIM，匹配成功后自动创建双方会话
+- ✅ **sendSystemMessage**：对接 OpenIM，发送系统通知
+- ✅ **Token 签发接口**：`POST /api/v1/openim/token` — 懒注册 + 签发用户 Token
+- ✅ **SDK 配置接口**：`GET /api/v1/openim/config` — 返回 apiAddr + wsAddr
+- ✅ **Provider 抽象层**：`ImProviderAdaptor` — 支持多 IM 引擎切换（体现设计模式）
+- ✅ **OpenIM 回调解析**：`OpenImAdaptor` — 解析 beforeSend/afterSend/online/offline
+- ✅ **回调接收端点**：`POST /api/v1/openim/callback` — 接收 OpenIM Webhook
+- ✅ **回调分发服务**：`CallbackService` — 遍历 adaptors 按事件类型分发
+- ✅ dating-proto-zzx:1.5（im_presence.proto）
+- ✅ Nacos 注册
+
+**待完成（按优先级）**：
+1. ❌ Before-send 回调增强：反导流检测 + 聊天扣费（已有 stub，需对接 payment-service）
+2. ❌ After-send 回调增强：消息落库 + AI 自动回复路由（待 ai-chat 对接）
+3. ❌ AI 回复拟真三件套（阅读延迟 / typing / 分段打字）
+4. ❌ 聊天扣金币（CoinChargeDispatcher + PaymentGrpcClient）
+5. ❌ 出站通知（MatchSuccessNotifier）
+6. ❌ 孤儿会话清扫（PresenceSweepJob）
+
+**新增（07-09）**：
+- ✅ OpenIM REST 客户端 + 管理员 Token 缓存
+- ✅ OpenImService（懒注册 / 双向会话 / 系统消息）
+- ✅ ensureConversation 对接 OpenIM（匹配后自动建会话）
+- ✅ Token 签发 HTTP 端点
+- ✅ Provider 抽象层（ImProviderAdaptor）+ 回调处理
+- ✅ OpenIM 配置类 + application-dev.yml
+
+---
+
+### 📦 example-service（10%）
+
+**状态**：骨架，仅启动类 + bootstrap.yml，gRPC handler 待实现
+
+---
+
+### 📦 ai-chat（10%）
+
+**状态**：Python 骨架，gRPC server 占位
+
+- main.py（gRPC server skeleton，端口 50051）
+- requirements.txt（grpcio / protobuf / pydantic）
+- 待实现：LangGraph Agent / LLM 接入 / VisionAgent / 敏感内容过滤
+
+---
+
+## Proto 定义（7 个）
+
+| Proto 文件 | 状态 |
+|---|---|
+| `user/user_identity.proto` | ✅ |
+| `user/user_profile.proto` | ✅ |
+| `match/match.proto` | ✅ |
+| `post/post.proto` | ✅ |
+| `im/im_presence.proto` | ✅ |
+| `payment/payment.proto` | ✅ |
+| `common/result.proto` | ✅ |
+
+---
+
+## Git 提交记录（2026-06-29 ~ 2026-07-09）
+
+| 日期 | Commit | 内容 |
+|------|--------|------|
+| 07-09 | `（待提交）` | OpenIM 核心集成 + post-service gRPC 客户端 + HN 公式修复 + PROGRESS 更新 |
+| 07-07 | `0154416` | fix(match-service): boolean @TableLogic for PG |
+| 07-06 | `3f67819` | feat(mobile-gateway): REST→gRPC BFF + JWT |
+| 07-05 | `5cd2b22` | docs: progress tracking |
+| 07-05 | `9a7d386` | feat(match-service): swipe/match core logic |
+| 07-04 | `c711ace` | feat(phase2): gRPC handlers, fanout, coalescing, feed |
+| 07-01 | `f3d1ac5` | feat(post-service): CRUD APIs, Flyway, Redis |
+| 07-01 | `1f96300` | feat(user-service): HTTP API, ObjectStorage, ban |
+| 06-29 | `ab6e3c8` | feat(user-service): deps & package structure |
+| 06-29 | `705b95e` | feat: init project skeleton |
+
+---
+
+## 待办总览（按优先级）
+
+### 短期（1 周内）
+1. Maven 编译验证 + 修复编译错误
+2. Docker Compose 一键启动 + 每个服务 Dockerfile
+3. Postman 演示脚本（注册→登录→发帖→刷Feed→划卡→匹配→拿IM Token）
+4. 全链路跑通验证
+
+### 中期（1-2 周）
+5. im-service 回调增强（反导流检测 + 聊天扣费）
+6. im-service AI 自动回复 + 拟真节奏
+7. mobile-gateway 限流 + MDC traceId
+
+### 长期（1-2 月）
+8. ai-chat LangGraph + LLM + Vision 完整实现
+9. 支付 PayPal 全链路
+10. 前端页面（H5）
+
+---
+
+## 端口规划
+
+| 服务 | gRPC 端口 | HTTP 端口 |
+|------|-----------|-----------|
+| user-service | 9090 | 8080 |
+| post-service | 9092 | 8082 |
+| example-service | 9091 | - |
+| im-service | 9093 | - |
+| match-service | 9094 | - |
+| payment-service | 9095 | - |
+| ai-chat | 50051 | - |
+| mobile-gateway | - | 8081（对外） |

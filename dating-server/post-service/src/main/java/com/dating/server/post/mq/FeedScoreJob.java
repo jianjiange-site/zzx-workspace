@@ -1,6 +1,7 @@
 package com.dating.server.post.mq;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.dating.server.post.client.UserClient;
 import com.dating.server.post.entity.Post;
 import com.dating.server.post.mapper.PostMapper;
 import lombok.RequiredArgsConstructor;
@@ -13,13 +14,15 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Feed 热门池打分任务：每 5 分钟全量重建热门池
  *
- * 算法：Hacker News 热度分
- *   score = likeCount / (hoursSinceCreated + 2)^1.5
+ * 算法：Hacker News 热度分（PRD）
+ *   score = (10 + 1.0*likes + 3.0*comments) / (hoursSinceCreated + 2)^1.5
  *
  *   - 帖子越新得分越高（除数小）
  *   - 点赞越多得分越高（分子大）
@@ -38,6 +41,7 @@ public class FeedScoreJob {
 
     private final PostMapper postMapper;
     private final StringRedisTemplate stringRedisTemplate;
+    private final UserClient userClient;
 
     /** 热门池最终 key */
     private static final String HOT_POOL_KEY = "post:feed:hot";
@@ -70,7 +74,14 @@ public class FeedScoreJob {
             return;
         }
 
-        // 第2步：内存算分 + 写入主池和性别分桶
+        // 第2步：收集所有作者 ID，批量查性别（用于分桶）
+        List<Long> authorIds = recentPosts.stream()
+                .map(Post::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, Integer> genderMap = userClient.batchGetGenders(authorIds);
+
+        // 第3步：内存算分 + 写入主池和性别分桶
         int scored = 0;
         // 用于性别分桶的临时 ZSet
         stringRedisTemplate.delete(HOT_POOL_TEMP_KEY);
@@ -81,17 +92,21 @@ public class FeedScoreJob {
             long hoursSinceCreated = Duration.between(post.getCreatedAt(), now).toHours();
             double score = hackerNewsScore(
                     Optional.ofNullable(post.getLikeCount()).orElse(0),
+                    Optional.ofNullable(post.getCommentCount()).orElse(0),
                     hoursSinceCreated);
 
             // 写入主池
             stringRedisTemplate.opsForZSet()
                     .add(HOT_POOL_TEMP_KEY, String.valueOf(post.getId()), score);
 
-            // 写入性别分桶
-            int ut = post.getUserType() != null ? post.getUserType() : 0;
-            if (ut == 1 || ut == 2) {
+            // 写入性别分桶（gRPC 查询优先，降级到 userType）
+            int gender = genderMap.getOrDefault(post.getUserId(), 0);
+            if (gender != 1 && gender != 2) {
+                gender = post.getUserType() != null ? post.getUserType() : 0;
+            }
+            if (gender == 1 || gender == 2) {
                 stringRedisTemplate.opsForZSet()
-                        .add(String.format(HOT_POOL_GENDER_TEMP, ut), String.valueOf(post.getId()), score);
+                        .add(String.format(HOT_POOL_GENDER_TEMP, gender), String.valueOf(post.getId()), score);
             }
 
             // 更新 posts 表的 score 字段
@@ -125,11 +140,11 @@ public class FeedScoreJob {
     }
 
     /**
-     * Hacker News 热度算法
-     * score = likeCount / (hoursSinceCreate + 2)^1.5
+     * Hacker News 热度算法（PRD）
+     * score = (10 + 1.0*likes + 3.0*comments) / (hoursSinceCreate + 2)^1.5
      */
-    static double hackerNewsScore(int likes, long hoursSinceCreated) {
+    static double hackerNewsScore(int likes, int comments, long hoursSinceCreated) {
         double ageHours = Math.max(hoursSinceCreated, 0) + 2;
-        return likes / Math.pow(ageHours, 1.5);
+        return (10.0 + 1.0 * likes + 3.0 * comments) / Math.pow(ageHours, 1.5);
     }
 }

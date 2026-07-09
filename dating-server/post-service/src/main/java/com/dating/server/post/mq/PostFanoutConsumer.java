@@ -1,6 +1,7 @@
 package com.dating.server.post.mq;
 
 import com.dating.server.post.constant.CacheKeys;
+import com.dating.server.post.client.UserClient;
 import com.dating.server.post.manager.UserFollowManager;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 )
 public class PostFanoutConsumer implements RocketMQListener<String> {
 
+    private final UserClient userClient;
     private final UserFollowManager userFollowManager;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
@@ -62,8 +64,11 @@ public class PostFanoutConsumer implements RocketMQListener<String> {
 
         log.info("写扩散消费: postId={}, authorId={}", postId, authorId);
 
-        // === 第1步：查作者的粉丝列表 ===
-        List<Long> followerIds = userFollowManager.getFollowerIds(authorId);
+        // === 第1步：查作者的粉丝列表（gRPC 优先，降级到本地） ===
+        List<Long> followerIds = userClient.getFriendUserIds(authorId);
+        if (followerIds.isEmpty()) {
+            followerIds = userFollowManager.getFollowerIds(authorId);
+        }
         if (followerIds.isEmpty()) {
             log.debug("没有粉丝，跳过写扩散: postId={}", postId);
             return;

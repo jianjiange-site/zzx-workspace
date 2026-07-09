@@ -27,3 +27,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+openim:
+  api-url: https://nexus-mind.chatvibe.me/api
+  ws-url: wss://nexus-mind.chatvibe.me/msg_gateway
+  admin-user-id: imAdmin
+  admin-secret: ${OPENIM_ADMIN_SECRET:c49af41e5a17a9818c26fed0bbb6846e36e288d6000fe28f}

@@ -2,6 +2,7 @@ package com.dating.server.im.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -130,24 +131,28 @@ public class ImPresenceService {
         }
     }
 
-    // ── 新增：匹配相关（暂为 stub，待 OpenIM 接入后完善） ──
+    // ── OpenIM 集成 ──
+
+    private OpenImService openImService;
+
+    @Autowired
+    public void setOpenImService(OpenImService openImService) {
+        this.openImService = openImService;
+    }
 
     public String ensureConversation(Long userIdA, Long userIdB) {
         log.info("ENSURE_CONVERSATION: userIdA={}, userIdB={}", userIdA, userIdB);
-        // TODO: 调 OpenIM API 创建会话
-        // 返回占位 conversationId
-        return "conv_" + userIdA + "_" + userIdB;
+        return openImService.ensureConversation(userIdA, userIdB);
     }
 
     public boolean sendSystemMessage(Long toUserId, String title, String body) {
         log.info("SEND_SYSTEM_MSG: toUserId={}, title={}, body={}", toUserId, title, body);
-        // TODO: 调 OpenIM API 发送系统消息
-        return true;
+        return openImService.sendSystemMessage(toUserId, title, body);
     }
 
     public boolean triggerDhOpening(Long dhUserId, Long targetUserId) {
         log.info("TRIGGER_DH_OPENING: dhUserId={}, targetUserId={}", dhUserId, targetUserId);
-        // TODO: 调 ai-chat gRPC 生成开场白
+        // 暂为 stub：待 ai-chat gRPC 集成后实现
         return true;
     }
 
